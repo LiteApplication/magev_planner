@@ -13,11 +13,12 @@ export default class AuthApi {
 
   }
 
-  async register(email: string, full_name: string, group: string): Promise<void> {
+  async register(email: string, full_name: string, enterprise: string, accepted_terms: boolean): Promise<void> {
     const bodyFormData = new FormData();
     bodyFormData.append('email', email);
     bodyFormData.append('full_name', full_name);
-    bodyFormData.append('group', group);
+    bodyFormData.append('enterprise', enterprise);
+    bodyFormData.append('accepted_terms', accepted_terms ? 'true' : 'false');
     await api.post("/auth/register", bodyFormData);
   }
 

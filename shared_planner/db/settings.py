@@ -36,7 +36,7 @@ DEFAULTS = {
         24,
         False,
     ),  # Send a reminder for the upcoming reservation n hours before, -1 to disable
-    "base_domain": ("http://localhost:5173", True),  # Base domain for email links
+    "base_domain": ("http://localhost:8000", True),  # Base domain for email links
     "notif_login": (False, True),  # Send notification when a user logs in
     "notif_reservation_created": (
         True,
@@ -91,6 +91,10 @@ DEFAULTS = {
     ),  # Should actions performed by admins be notified to other admins?
     "block_all_emails": (False, True),  # Block all emails
     "api_key": ("", True),  # API key to access the full data report
+    "server_timezone": (
+        "Europe/Paris",
+        False,
+    ),  # IANA timezone for user-facing rendering (emails, ICS). Stored datetimes are UTC.
 }
 
 

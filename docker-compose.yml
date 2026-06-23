@@ -1,45 +1,78 @@
 services:
+  nginx:
+    image: nginx:alpine
+    ports:
+    - 8000:80
+    volumes:
+    - ./nginx.dev.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+    - app
+    - ui
+    restart: unless-stopped
   app:
     build:
       context: .
       target: backend-dev
-    ports:
-      - "8000:8000"
+    expose:
+    - '8000'
     volumes:
-      - ./database.db:/app/database.db
+    - ./database.db:/app/database.db
+    - ./uploads:/app/uploads
     env_file: .env
     restart: unless-stopped
     develop:
       watch:
-        - action: sync
-          path: ./shared_planner
-          target: /app/shared_planner
-        - action: sync
-          path: ./templates
-          target: /app/templates
-        - action: rebuild
-          path: ./pyproject.toml
-
+      - action: sync
+        path: ./shared_planner
+        target: /app/shared_planner
+      - action: sync
+        path: ./templates
+        target: /app/templates
+      - action: rebuild
+        path: ./pyproject.toml
   ui:
     build:
       context: .
       target: frontend-dev
-    ports:
-      - "5173:5173"
+    expose:
+    - '5173'
+    environment:
+    - HMR_CLIENT_PORT=8000
     restart: unless-stopped
     develop:
       watch:
-        - action: sync
-          path: ./web
-          target: /app/web
-          ignore:
-            - node_modules/
-        - action: rebuild
-          path: ./web/package.json
-
+      - action: sync
+        path: ./web
+        target: /app/web
+        ignore:
+        - node_modules/
+      - action: rebuild
+        path: ./web/package.json
   mailhog:
     image: mailhog/mailhog
     ports:
-      - "1025:1025"
-      - "8025:8025"
+    - 1025:1025
+    - 8025:8025
     restart: unless-stopped
+  mailer:
+    build:
+      context: .
+      target: backend-dev
+    command: uv run mail_daemon
+    volumes:
+    - ./database.db:/app/database.db
+    - ./uploads:/app/uploads
+    env_file: .env
+    restart: unless-stopped
+    depends_on:
+    - app
+    develop:
+      watch:
+      - action: sync
+        path: ./shared_planner
+        target: /app/shared_planner
+      - action: sync
+        path: ./templates
+        target: /app/templates
+      - action: rebuild
+        path: ./pyproject.toml

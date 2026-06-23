@@ -1,5 +1,5 @@
 
-function handleError(toast: any, translator: any, unknown: string = "error.unknown", infos: Object = {}) {
+function handleError(toast: any, translator: any, unknown: string = "error.unknown", infos: object = {}) {
     return ((error: any) => {
         error.stack = undefined;
         let toast_data = { severity: 'error', summary: translator('error.title'), detail: translator(unknown), life: 10000 };

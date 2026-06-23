@@ -14,6 +14,11 @@ const router = createRouter({
       component: () => import('../views/RegisterView.vue')
     },
     {
+      path: '/register/:slug',
+      name: 'register-enterprise',
+      component: () => import('../views/RegisterView.vue')
+    },
+    {
       path: '/reset_password/:token/:first_setup',
       name: 'reset_password',
       component: () => import('../views/ResetPasswordView.vue')
@@ -56,6 +61,21 @@ const router = createRouter({
           path: 'users',
           name: 'admin-users',
           component: () => import('../views/admin/AdminUsersView.vue')
+        },
+        {
+          path: 'enterprises',
+          name: 'admin-enterprises',
+          component: () => import('../views/admin/AdminEnterprisesView.vue')
+        },
+        {
+          path: 'documents',
+          name: 'admin-documents',
+          component: () => import('../views/admin/AdminDocumentsView.vue')
+        },
+        {
+          path: 'mail-templates',
+          name: 'admin-mail-templates',
+          component: () => import('../views/admin/AdminMailTemplatesView.vue')
         },
         {
           path: 'settings',

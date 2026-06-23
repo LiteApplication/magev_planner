@@ -103,6 +103,13 @@ type TimeSlot = {
     valid_until: string   // "YYYY-MM-DD"
 }
 
+type SaveMode = 'all' | 'single' | 'upcoming'
+
+type SlotOp = {
+    action: 'create' | 'update' | 'delete',
+    slot: Partial<TimeSlot>
+}
+
 type SlotStatus = {
     slot: TimeSlot,
     date: string,         // "YYYY-MM-DD"
@@ -130,6 +137,40 @@ type Setting = {
     key: string,
     value: string,
     private: boolean
+}
+
+type Enterprise = {
+    id: number,
+    slug: string,
+    name: string,
+    email_domains: string,
+    checkbox_text: string,
+    welcome_message: string,
+    reminder_message: string
+}
+
+// Public subset returned to the (unauthenticated) registration form.
+type EnterprisePublic = {
+    slug: string,
+    name: string,
+    email_domains: string,
+    checkbox_text: string
+}
+
+type Document = {
+    id: number,
+    filename: string,
+    content_type: string,
+    size: number,
+    url: string
+}
+
+type MailTemplate = {
+    name: string,
+    subject: string,
+    content: string,
+    default_content: string,
+    customized: boolean
 }
 
 type Notification = {
@@ -164,5 +205,5 @@ const exampleNotification: Notification = {
 
 
 
-export type { TokenResponse, User, Shop, OpenRange, ShopWithOpenRange, ReservedTimeRange, TimeSlot, SlotStatus, BookSlotRequest, BookRangeRequest, Setting, Notification }
+export type { TokenResponse, User, Shop, OpenRange, ShopWithOpenRange, ReservedTimeRange, TimeSlot, SaveMode, SlotOp, SlotStatus, BookSlotRequest, BookMultipleSlotsRequest, BookRangeRequest, Setting, Enterprise, EnterprisePublic, Document, MailTemplate, Notification }
 export { exampleShop, exampleReservedTimeRange, exampleOpenRange, exampleShopWithOpenRange, exampleUser, exampleNotification }

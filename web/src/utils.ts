@@ -88,10 +88,16 @@ function networkDate(date: Date) {
 }
 
 function date_start_end(start: string, duration_minutes: number, locale: string): { date: string, start: string, end: string } {
+    // `start` is a UTC datetime from the backend; render it in the viewer's local time.
+    const startDate = parseServerDate(start);
+    const endDate = new Date(startDate.getTime() + duration_minutes * 60000);
+    const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
     return {
-        date: formatDate(start, locale),
-        start: start.slice(11, 16),
-        end: minutesToTime(timeToMinutes(start.slice(11, 16)) + duration_minutes)
+        date: startDate.toLocaleDateString(locale, {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+        }),
+        start: hhmm(startDate),
+        end: hhmm(endDate),
     }
 }
 
@@ -195,8 +201,18 @@ function getMonday(d: Date | string): string {
     return d.toISOString().slice(0, 10);
 }
 
+// Server timestamps (e.g. notification.date) are stored as naive UTC and serialized
+// without a timezone suffix. Mark them as UTC so they render in the viewer's local time.
+function parseServerDate(value: string | Date): Date {
+    if (value instanceof Date) return value;
+    const iso = value.includes('T') ? value : value.replace(' ', 'T');
+    const hasTz = /[zZ]$|[+-]\d{2}:?\d{2}$/.test(iso);
+    return new Date(hasTz ? iso : iso + 'Z');
+}
+
 export {
     timeToMinutes,
+    parseServerDate,
     minutesToTime,
     reformatTime,
     getDateOfWeek,

@@ -11,11 +11,24 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
-from shared_planner.db.models import Setting, Reservation, Notification, User
+from sqlmodel import select
+from shared_planner.db.models import (
+    Setting,
+    Reservation,
+    Notification,
+    User,
+    Enterprise,
+)
 from shared_planner.db.settings import get
 from shared_planner.db.session import SessionLock
 from shared_planner.week import monday_str
 from shared_planner.ics import create_ics
+from shared_planner import tz
+from shared_planner.mail_render import (
+    get_template_markdown,
+    markdown_to_html,
+    wrap_in_shell,
+)
 
 # Load environment variables from .env file
 load_dotenv()
@@ -42,17 +55,14 @@ SUBJECTS = {
     "notification.admin.new_user": "[ADMIN] Nouvel utilisateur",
 }
 
-with open(os.path.join(TEMPLATE_DIR, "mail_shell.html"), "r") as file:
-    MAIL_BASE = file.read()
-
-
 mail_queue = Queue()
 # Set locale to French
 locale.setlocale(locale.LC_TIME, "fr_FR.UTF-8")
 
 
 def d(value, format_type="date"):
-    dt = datetime.strptime(value, "%Y-%m-%d %H:%M")
+    # Stored datetimes are UTC; render them in the configured server timezone.
+    dt = tz.utc_to_local(datetime.strptime(value, "%Y-%m-%d %H:%M"))
     if format_type == "date":
         return dt.strftime("%d %B %Y")
     elif format_type == "time":
@@ -70,9 +80,8 @@ def d(value, format_type="date"):
 def send_mail(name: str, email: str, template: str, data: dict):
     subject = SUBJECTS.get(template, "Notification")
 
-    template = template.replace(".", os.sep)
-    with open(os.path.join(TEMPLATE_DIR, template) + ".html", "r") as file:
-        template_content = file.read()
+    # Load the markdown source (admin override or codebase default).
+    template_content = get_template_markdown(template)
 
     for key, value in data.items():
         if key.startswith("date-"):
@@ -93,15 +102,12 @@ def send_mail(name: str, email: str, template: str, data: dict):
             )
         template_content = template_content.replace(f"{{{key}}}", str(value))
 
+    # Markdown -> HTML, then wrap in the styled shell. base_domain / admin_mail
+    # are substituted last so they fill placeholders in both content and shell.
+    template_content = wrap_in_shell(markdown_to_html(template_content))
     template_content = template_content.replace(
         "{base_domain}", get("base_domain").value
     ).replace("{admin_mail}", get("admin_mail").value)
-
-    template_content = (
-        MAIL_BASE.replace("{content}", template_content)
-        .replace("{base_domain}", get("base_domain").value)
-        .replace("{admin_mail}", get("admin_mail").value)
-    )
 
     msg = MIMEMultipart()
     msg["From"] = get("mail_from").value
@@ -143,6 +149,9 @@ def queue_reminders():
     with SessionLock() as session:
         to_send = Reservation.find_unsent_reminders(session, email_notification_before)
         for reservation in to_send:
+            enterprise = session.exec(
+                select(Enterprise).where(Enterprise.name == reservation.user.group)
+            ).first()
             session.add(
                 Notification.create(
                     user=reservation.user,
@@ -157,9 +166,12 @@ def queue_reminders():
                         // 60,
                         "shop": reservation.shop.name,
                         "maps_link": reservation.shop.maps_link,
+                        "enterprise_message": enterprise.reminder_message
+                        if enterprise
+                        else "",
                         "ics": reservation.ics_data(),
                     },
-                    route=f"/shops/{reservation.shop_id}/{monday_str(reservation.start_time)}",
+                    route=f"/shops/{reservation.shop_id}/{monday_str(tz.utc_to_local(reservation.start_time))}",
                     is_reminder=True,
                     mail=True,
                 )
@@ -253,7 +265,6 @@ def serve_mail():
         sys.exit(1)
 
     template = sys.argv[1]
-    template = template.replace(".", os.sep)
     data = {}
     for arg in sys.argv[2:]:
         key, value = arg.split("=")
@@ -264,11 +275,10 @@ def serve_mail():
             self.send_response(200)
             self.send_header("Content-type", "text/html")
             self.end_headers()
-            with open(os.path.join(TEMPLATE_DIR, template) + ".html", "r") as file:
-                template_content = file.read()
+            template_content = get_template_markdown(template)
             for key, value in data.items():
                 template_content = template_content.replace(f"{{{key}}}", str(value))
-            template_content = MAIL_BASE.replace("{content}", template_content)
+            template_content = wrap_in_shell(markdown_to_html(template_content))
             template_content = template_content.replace(
                 "{base_domain}", get("base_domain").value
             ).replace("{admin_mail}", get("admin_mail").value)

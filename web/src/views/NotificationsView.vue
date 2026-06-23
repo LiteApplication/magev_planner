@@ -6,6 +6,7 @@ import Timeline from 'primevue/timeline';
 import type { Notification } from '@/api/types';
 import { PrimeIcons } from '@primevue/core/api';
 import { notificationsApi } from '@/main';
+import { parseServerDate } from '@/utils';
 import Button from 'primevue/button';
 import { useConfirm } from "primevue/useconfirm";
 import handleError from '@/error_handler';
@@ -31,22 +32,22 @@ onMounted(() => {
 const notifications_computed = computed(() => {
     return notifications.value.map(n => {
         const data = JSON.parse(n.data);
-        // if a field's name starts with "date-", the we format the value using d()
+        // Date/time fields hold UTC instants from the backend; render them in local time.
         for (const key in data) {
             if (key.startsWith("date-")) {
-                data[key] = d(data[key]);
+                data[key] = d(parseServerDate(data[key]));
             }
             if (key.startsWith("time-")) {
-                data[key] = d(data[key], 'time');
+                data[key] = d(parseServerDate(data[key]), 'time');
             }
             if (key.startsWith("datetime-")) {
-                data[key] = d(data[key], 'datetime');
+                data[key] = d(parseServerDate(data[key]), 'datetime');
             }
             if (key.startsWith("datetime_long-")) {
-                data[key] = d(data[key], 'long');
+                data[key] = d(parseServerDate(data[key]), 'long');
             }
             if (key.startsWith("datetime_short-")) {
-                data[key] = d(data[key], 'short');
+                data[key] = d(parseServerDate(data[key]), 'short');
             }
             if (key.endsWith("duration")) {
                 // Transform 90 (minutes) into 1h30, 120 to 2h, etc.
@@ -154,7 +155,7 @@ export default defineComponent({
         :disabled="notifications.length == 0" />
     <Timeline :value="notifications_computed" id="timeline" pt:eventOpposite:style="max-width: 20vw;">
         <template #opposite="{ item }">
-            <div class="text-surface-500 dark:text-surface-400 date-container">{{ d(new Date(item.date), 'datetime') }}</div>
+            <div class="text-surface-500 dark:text-surface-400 date-container">{{ d(parseServerDate(item.date), 'datetime') }}</div>
         </template>
         <template #content="{ item }">
             <div class="flex flex-col flex-shrink">

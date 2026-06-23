@@ -35,7 +35,7 @@
 
 <script setup lang="ts">
 import { type ShopWithOpenRange, type ReservedTimeRange, type Shop, type User } from '@/api/types';
-import { date_start_end, getMonday } from '@/utils';
+import { date_start_end, getMonday, parseServerDate } from '@/utils';
 import Button from 'primevue/button';
 import Skeleton from 'primevue/skeleton';
 import { computed, defineComponent, onMounted, ref, type PropType } from 'vue';
@@ -90,8 +90,8 @@ onMounted(() => {
     }
 });
 
-const dialogDate = ref(new Date(props.reservation.start_time));
-const dialogTimeStart = ref(new Date(props.reservation.start_time));
+const dialogDate = ref(parseServerDate(props.reservation.start_time));
+const dialogTimeStart = ref(parseServerDate(props.reservation.start_time));
 const dialogTimeEnd = ref(new Date(dialogTimeStart.value.getTime() + props.reservation.duration_minutes * 60 * 1000));
 
 const emit = defineEmits(['update:reservation']);
@@ -101,7 +101,7 @@ function gotoReservation() {
     router.push({
         name: 'shop', params: {
             id: props.reservation.shop!.id,
-            week: getMonday(props.reservation.start_time)
+            week: getMonday(parseServerDate(props.reservation.start_time))
         }
     });
 }

@@ -31,6 +31,9 @@ const navItems = computed(() => [
     { to: '/admin/shops', label: t('menu.admin.shops'), icon: 'pi pi-shop' },
     { to: '/admin/reservations', label: t('menu.admin.reservations'), icon: 'pi pi-calendar' },
     { to: '/admin/users', label: t('menu.admin.users'), icon: 'pi pi-users' },
+    { to: '/admin/enterprises', label: t('menu.admin.enterprises'), icon: 'pi pi-building' },
+    { to: '/admin/documents', label: t('menu.admin.documents'), icon: 'pi pi-file' },
+    { to: '/admin/mail-templates', label: t('menu.admin.mail_templates'), icon: 'pi pi-envelope' },
     { to: '/admin/settings', label: t('menu.admin.settings'), icon: 'pi pi-cog' },
 ]);
 </script>

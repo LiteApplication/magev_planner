@@ -6,7 +6,13 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlmodel import select
 
-from shared_planner.db.models import Notification, PasswordReset, Token, User
+from shared_planner.db.models import (
+    Enterprise,
+    Notification,
+    PasswordReset,
+    Token,
+    User,
+)
 from shared_planner.db.session import SessionLock
 from shared_planner.db.settings import get
 from shared_planner.mailer_daemon import send_mail
@@ -121,7 +127,8 @@ def login(
 def register(
     email: Annotated[str, Form()],
     full_name: Annotated[str, Form()],
-    group: str = Form(default=None),
+    enterprise: str = Form(...),
+    accepted_terms: bool = Form(default=False),
 ) -> None:
     with SessionLock() as session:
         statement = select(User).where(User.email == email)
@@ -139,10 +146,18 @@ def register(
         # Sanitize inputs to avoid XSS
         full_name = re.sub(r"[^\w\s]", "", full_name).strip()
         email = email.strip().lower()
-        if group is not None:
-            group = re.sub(r"[^\w\s]", "", group).strip()
-        else:
-            group = "SANS GROUPE"
+
+        enterprise_obj = session.exec(
+            select(Enterprise).where(Enterprise.slug == enterprise)
+        ).first()
+        if enterprise_obj is None:
+            raise HTTPException(status_code=400, detail="error.auth.enterprise_invalid")
+        if not enterprise_obj.matches_email(email):
+            raise HTTPException(status_code=400, detail="error.auth.email_domain_mismatch")
+        if enterprise_obj.checkbox_text and not accepted_terms:
+            raise HTTPException(status_code=400, detail="error.auth.terms_not_accepted")
+
+        group = enterprise_obj.name
 
         new_user = User(full_name=full_name, email=email, group=group, admin=False)
         session.add(new_user)
@@ -187,6 +202,7 @@ def register(
                 "full_name": new_user.full_name,
                 "token": password_token.token,
                 "validity_hours": get("reset_token_validity").value,
+                "enterprise_message": enterprise_obj.welcome_message,
             },
         )
 

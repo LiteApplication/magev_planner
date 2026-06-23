@@ -60,7 +60,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue';
-import type { TimeSlot } from '@/api/types';
+import type { TimeSlot, SaveMode, SlotOp } from '@/api/types';
 import SlotEditDialog from './dialog/SlotEditDialog.vue';
 import DatePicker from '@/components/primevue/DatePicker';
 import { useI18n } from 'vue-i18n';
@@ -75,7 +75,8 @@ const props = defineProps<{
 const emit = defineEmits<{
     create: [slot: Partial<TimeSlot>],
     update: [slot: Partial<TimeSlot>],
-    delete: [slotId: number]
+    delete: [slotId: number],
+    batch: [ops: SlotOp[]]
 }>();
 
 const DAY_START_H = 6;   // 06:00
@@ -172,7 +173,7 @@ function slotsForDay(day: number): TimeSlot[] {
     return props.slots.filter(s => {
         if (s.day !== day) return false;
         if (!filterDate.value) return true;
-        const d = filterDate.value.toISOString().slice(0, 10);
+        const d = dateStr(filterDate.value);
         return s.valid_from <= d && s.valid_until >= d;
     });
 }
@@ -194,7 +195,7 @@ function slotStyle(slot: TimeSlot) {
 }
 
 function slotClass(slot: TimeSlot) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = dateStr(new Date());
     if (slot.valid_until < today) return 'slot-past';
     if (slot.valid_from > today) return 'slot-future';
     return 'slot-active';
@@ -209,12 +210,99 @@ const previewStyle = computed(() => {
     };
 });
 
-function onSlotSave(slot: Partial<TimeSlot>) {
-    if (slot.id) {
-        emit('update', slot);
-    } else {
+// Date helpers for splitting weekly slots
+function dateStr(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function parseDate(s: string): Date {
+    const [y, m, d] = s.split('-').map(Number);
+    return new Date(y, m - 1, d);
+}
+
+function addDays(d: Date, n: number): Date {
+    const r = new Date(d);
+    r.setDate(r.getDate() + n);
+    return r;
+}
+
+// Date of the slot's weekday (0 = Monday) within the week containing `ref`
+function occurrenceDate(ref: Date, slotDay: number): Date {
+    const d = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
+    const mondayOffset = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - mondayOffset + slotDay);
+    return d;
+}
+
+function onSlotSave(slot: Partial<TimeSlot>, mode: SaveMode = 'all') {
+    if (!slot.id) {
         emit('create', slot);
+        return;
     }
+    if (mode === 'all') {
+        emit('update', slot);
+        return;
+    }
+
+    const original = props.slots.find(s => s.id === slot.id);
+    if (!original) {
+        emit('update', slot);
+        return;
+    }
+
+    const occ = occurrenceDate(filterDate.value ?? new Date(), original.day);
+    const before = addDays(occ, -7);   // last occurrence kept by the original head
+    const after = addDays(occ, 7);     // first occurrence of the original tail
+    const hasBefore = before >= parseDate(original.valid_from);
+    const hasAfter = after <= parseDate(original.valid_until);
+
+    const edited = {
+        shop_id: slot.shop_id,
+        day: slot.day,
+        start_time: slot.start_time,
+        end_time: slot.end_time,
+        max_volunteers: slot.max_volunteers,
+    };
+    const head = {
+        shop_id: original.shop_id,
+        day: original.day,
+        start_time: original.start_time,
+        end_time: original.end_time,
+        max_volunteers: original.max_volunteers,
+    };
+
+    const ops: SlotOp[] = [];
+
+    if (mode === 'upcoming') {
+        if (!hasBefore) {
+            // Editing from the very first week == editing the whole range
+            ops.push({ action: 'update', slot: { id: original.id, ...edited, valid_from: original.valid_from, valid_until: original.valid_until } });
+        } else {
+            ops.push({ action: 'update', slot: { id: original.id, ...head, valid_from: original.valid_from, valid_until: dateStr(before) } });
+            ops.push({ action: 'create', slot: { ...edited, valid_from: dateStr(occ), valid_until: original.valid_until } });
+        }
+    } else { // single
+        if (!hasBefore && !hasAfter) {
+            // Original only ever covered this single week
+            ops.push({ action: 'update', slot: { id: original.id, ...edited, valid_from: dateStr(occ), valid_until: dateStr(occ) } });
+        } else if (hasBefore && !hasAfter) {
+            ops.push({ action: 'update', slot: { id: original.id, ...head, valid_from: original.valid_from, valid_until: dateStr(before) } });
+            ops.push({ action: 'create', slot: { ...edited, valid_from: dateStr(occ), valid_until: dateStr(occ) } });
+        } else if (!hasBefore && hasAfter) {
+            // Reuse the original row for the trailing tail
+            ops.push({ action: 'update', slot: { id: original.id, ...head, valid_from: dateStr(after), valid_until: original.valid_until } });
+            ops.push({ action: 'create', slot: { ...edited, valid_from: dateStr(occ), valid_until: dateStr(occ) } });
+        } else {
+            ops.push({ action: 'update', slot: { id: original.id, ...head, valid_from: original.valid_from, valid_until: dateStr(before) } });
+            ops.push({ action: 'create', slot: { ...edited, valid_from: dateStr(occ), valid_until: dateStr(occ) } });
+            ops.push({ action: 'create', slot: { ...head, valid_from: dateStr(after), valid_until: original.valid_until } });
+        }
+    }
+
+    emit('batch', ops);
 }
 
 function onSlotDelete(slotId: number) {

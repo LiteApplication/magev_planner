@@ -89,7 +89,7 @@ export default defineComponent({
         sortedTasksWithRows() {
             const sorted: Task[] = this.tasks.map((task) => ({ ...task })).sort((a, b) => a.start_time - b.start_time);
             // Initialize an array to keep track of the end times of the rows
-            let rows: number[] = [];
+            const rows: number[] = [];
             let availableRows = 0;
 
             // Iterate through the sorted tasks

@@ -8,6 +8,7 @@ from shared_planner.api.auth import CurrentAdmin, CurrentUser
 from shared_planner.db.models import Notification, PasswordReset, User, Token, Setting
 from shared_planner.db.session import SessionLock
 from shared_planner.db.settings import get as get_setting
+from shared_planner import tz
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -52,13 +53,13 @@ def list_settings() -> list[Setting]:
 def cleanup_db():
     with SessionLock() as session:
         # Clear expired tokens
-        query = delete(Token).where(Token.expires_at < datetime.datetime.now())
+        query = delete(Token).where(Token.expires_at < tz.now())
         result_auth_token = session.exec(query)
 
         # Clear password reset tokens
         query = delete(PasswordReset).where(
             or_(
-                PasswordReset.expires_at < datetime.datetime.now(),
+                PasswordReset.expires_at < tz.now(),
                 PasswordReset.used == True,  # noqa: E712
             )
         )
@@ -73,7 +74,7 @@ def cleanup_db():
         if get_setting("cleanup_reminders_days").asInt() != -1:
             query = delete(Notification).where(
                 Notification.date
-                < datetime.datetime.now()
+                < tz.now()
                 - datetime.timedelta(
                     days=get_setting("cleanup_reminders_days").asInt()
                 ),
@@ -84,7 +85,7 @@ def cleanup_db():
         if get_setting("cleanup_notifications_days").asInt() != -1:
             query = delete(Notification).where(
                 Notification.date
-                < datetime.datetime.now()
+                < tz.now()
                 - datetime.timedelta(
                     days=get_setting("cleanup_notifications_days").asInt()
                 ),
@@ -95,7 +96,7 @@ def cleanup_db():
         if get_setting("cleanup_notifications_days_admin").asInt() != -1:
             query = delete(Notification).where(
                 Notification.date
-                < datetime.datetime.now()
+                < tz.now()
                 - datetime.timedelta(
                     days=get_setting("cleanup_notifications_days_admin").asInt()
                 ),

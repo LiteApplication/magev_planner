@@ -527,7 +527,7 @@ export default {
                 } else if (this.isMultipleSelection()) {
                     let selected = false;
 
-                    for (let date of this.d_value) {
+                    for (const date of this.d_value) {
                         selected = this.isDateEquals(date, dateMeta);
 
                         if (selected) {
@@ -584,10 +584,10 @@ export default {
             else return false;
         },
         isDateBetween(start, end, dateMeta) {
-            let between = false;
+            const between = false;
 
             if (start && end) {
-                let date = new Date(dateMeta.year, dateMeta.month, dateMeta.day);
+                const date = new Date(dateMeta.year, dateMeta.month, dateMeta.day);
 
                 return start.getTime() <= date.getTime() && end.getTime() >= date.getTime();
             }
@@ -595,13 +595,13 @@ export default {
             return between;
         },
         getFirstDayOfMonthIndex(month, year) {
-            let day = new Date();
+            const day = new Date();
 
             day.setDate(1);
             day.setMonth(month);
             day.setFullYear(year);
 
-            let dayIndex = day.getDay() + this.sundayIndex;
+            const dayIndex = day.getDay() + this.sundayIndex;
 
             return dayIndex >= 7 ? dayIndex - 7 : dayIndex;
         },
@@ -609,7 +609,7 @@ export default {
             return 32 - this.daylightSavingAdjust(new Date(year, month, 32)).getDate();
         },
         getDaysCountInPrevMonth(month, year) {
-            let prev = this.getPreviousMonthAndYear(month, year);
+            const prev = this.getPreviousMonthAndYear(month, year);
 
             return this.getDaysCountInMonth(prev.month, prev.year);
         },
@@ -936,7 +936,7 @@ export default {
         },
         isDateDisabled(day, month, year) {
             if (this.disabledDates) {
-                for (let disabledDate of this.disabledDates) {
+                for (const disabledDate of this.disabledDates) {
                     if (disabledDate.getFullYear() === year && disabledDate.getMonth() === month && disabledDate.getDate() === day) {
                         return true;
                     }
@@ -947,8 +947,8 @@ export default {
         },
         isDayDisabled(day, month, year) {
             if (this.disabledDays) {
-                let weekday = new Date(year, month, day);
-                let weekdayNumber = weekday.getDay();
+                const weekday = new Date(year, month, day);
+                const weekdayNumber = weekday.getDay();
 
                 return this.disabledDays.indexOf(weekdayNumber) !== -1;
             }
@@ -975,7 +975,7 @@ export default {
             }
 
             if (this.isMultipleSelection() && this.isSelected(dateMeta)) {
-                let newValue = this.d_value.filter((date) => !this.isDateEquals(date, dateMeta));
+                const newValue = this.d_value.filter((date) => !this.isDateEquals(date, dateMeta));
 
                 this.updateModel(newValue);
             } else {
@@ -1100,7 +1100,7 @@ export default {
                         formattedValue = this.formatDateTime(value);
                     } else if (this.isMultipleSelection()) {
                         for (let i = 0; i < value.length; i++) {
-                            let dateAsString = this.formatDateTime(value[i]);
+                            const dateAsString = this.formatDateTime(value[i]);
 
                             formattedValue += dateAsString;
 
@@ -1110,8 +1110,8 @@ export default {
                         }
                     } else if (this.isRangeSelection()) {
                         if (value && value.length) {
-                            let startDate = value[0];
-                            let endDate = value[1];
+                            const startDate = value[0];
+                            const endDate = value[1];
 
                             formattedValue = this.formatDateTime(startDate);
 
@@ -1247,8 +1247,8 @@ export default {
 
             let output = '';
             let hours = date.getHours();
-            let minutes = date.getMinutes();
-            let seconds = date.getSeconds();
+            const minutes = date.getMinutes();
+            const seconds = date.getSeconds();
 
             if (this.hourFormat === '12' && hours > 11 && hours !== 12) {
                 hours -= 12;
@@ -1275,8 +1275,8 @@ export default {
             return output;
         },
         onTodayButtonClick(event) {
-            let date = new Date();
-            let dateMeta = {
+            const date = new Date();
+            const dateMeta = {
                 day: date.getDate(),
                 month: date.getMonth(),
                 year: date.getFullYear(),
@@ -1312,7 +1312,7 @@ export default {
             this.clearTimePickerTimer();
         },
         repeat(event, interval, type, direction) {
-            let i = interval || 500;
+            const i = interval || 500;
 
             this.clearTimePickerTimer();
             this.timePickerTimer = setTimeout(() => {
@@ -1400,7 +1400,7 @@ export default {
             return true;
         },
         incrementHour(event) {
-            let prevHour = this.currentHour;
+            const prevHour = this.currentHour;
             let newHour = this.currentHour + Number(this.stepHour);
             let newPM = this.pm;
 
@@ -1443,7 +1443,7 @@ export default {
             event.preventDefault();
         },
         incrementMinute(event) {
-            let newMinute = this.currentMinute + Number(this.stepMinute);
+            const newMinute = this.currentMinute + Number(this.stepMinute);
 
             if (this.validateTime(this.currentHour, newMinute, this.currentSecond, this.pm)) {
                 this.currentMinute = newMinute > 59 ? newMinute - 60 : newMinute;
@@ -1463,7 +1463,7 @@ export default {
             event.preventDefault();
         },
         incrementSecond(event) {
-            let newSecond = this.currentSecond + Number(this.stepSecond);
+            const newSecond = this.currentSecond + Number(this.stepSecond);
 
             if (this.validateTime(this.currentHour, this.currentMinute, newSecond, this.pm)) {
                 this.currentSecond = newSecond > 59 ? newSecond - 60 : newSecond;
@@ -1594,15 +1594,15 @@ export default {
             if (this.isSingleSelection()) {
                 value = this.parseDateTime(text);
             } else if (this.isMultipleSelection()) {
-                let tokens = text.split(',');
+                const tokens = text.split(',');
 
                 value = [];
 
-                for (let token of tokens) {
+                for (const token of tokens) {
                     value.push(this.parseDateTime(token.trim()));
                 }
             } else if (this.isRangeSelection()) {
-                let tokens = text.split(' - ');
+                const tokens = text.split(' - ');
 
                 value = [];
 
@@ -1615,7 +1615,7 @@ export default {
         },
         parseDateTime(text) {
             let date;
-            let parts = text.split(' ');
+            const parts = text.split(' ');
 
             if (this.timeOnly) {
                 date = new Date();
@@ -1639,24 +1639,24 @@ export default {
             }
 
             this.pm = ampm === this.$primevue.config.locale.pm || ampm === this.$primevue.config.locale.pm.toLowerCase();
-            let time = this.parseTime(timeString);
+            const time = this.parseTime(timeString);
 
             value.setHours(time.hour);
             value.setMinutes(time.minute);
             value.setSeconds(time.second);
         },
         parseTime(value) {
-            let tokens = value.split(':');
-            let validTokenLength = this.showSeconds ? 3 : 2;
-            let regex = /^[0-9][0-9]$/;
+            const tokens = value.split(':');
+            const validTokenLength = this.showSeconds ? 3 : 2;
+            const regex = /^[0-9][0-9]$/;
 
             if (tokens.length !== validTokenLength || !tokens[0].match(regex) || !tokens[1].match(regex) || (this.showSeconds && !tokens[2].match(regex))) {
                 throw 'Invalid time';
             }
 
             let h = parseInt(tokens[0]);
-            let m = parseInt(tokens[1]);
-            let s = this.showSeconds ? parseInt(tokens[2]) : null;
+            const m = parseInt(tokens[1]);
+            const s = this.showSeconds ? parseInt(tokens[2]) : null;
 
             if (isNaN(h) || isNaN(m) || h > 23 || m > 59 || (this.hourFormat == '12' && h > 12) || (this.showSeconds && (isNaN(s) || s > 59))) {
                 throw 'Invalid time';
@@ -1693,7 +1693,7 @@ export default {
                 literal = false,
                 date,
                 lookAhead = (match) => {
-                    let matches = iFormat + 1 < format.length && format.charAt(iFormat + 1) === match;
+                    const matches = iFormat + 1 < format.length && format.charAt(iFormat + 1) === match;
 
                     if (matches) {
                         iFormat++;
@@ -1702,7 +1702,7 @@ export default {
                     return matches;
                 },
                 getNumber = (match) => {
-                    let isDoubled = lookAhead(match),
+                    const isDoubled = lookAhead(match),
                         size = match === '@' ? 14 : match === '!' ? 20 : match === 'y' && isDoubled ? 4 : match === 'o' ? 3 : 2,
                         minSize = match === 'y' ? size : 1,
                         digits = new RegExp('^\\d{' + minSize + ',' + size + '}'),
@@ -1718,8 +1718,8 @@ export default {
                 },
                 getName = (match, shortNames, longNames) => {
                     let index = -1;
-                    let arr = lookAhead(match) ? longNames : shortNames;
-                    let names = [];
+                    const arr = lookAhead(match) ? longNames : shortNames;
+                    const names = [];
 
                     for (let i = 0; i < arr.length; i++) {
                         names.push([i, arr[i]]);
@@ -1730,7 +1730,7 @@ export default {
                     });
 
                     for (let i = 0; i < names.length; i++) {
-                        let name = names[i][1];
+                        const name = names[i][1];
 
                         if (value.substr(iValue, name.length).toLowerCase() === name.toLowerCase()) {
                             index = names[i][0];
@@ -1842,7 +1842,7 @@ export default {
 
                     month++;
                     day -= dim;
-                    // eslint-disable-next-line
+                     
                 } while (true);
             }
 
@@ -1855,10 +1855,10 @@ export default {
             return date;
         },
         getWeekNumber(date) {
-            let checkDate = new Date(date.getTime());
+            const checkDate = new Date(date.getTime());
 
             checkDate.setDate(checkDate.getDate() + 4 - (checkDate.getDay() || 7));
-            let time = checkDate.getTime();
+            const time = checkDate.getTime();
 
             checkDate.setMonth(0);
             checkDate.setDate(1);
@@ -1875,21 +1875,21 @@ export default {
                 case 'ArrowDown': {
                     cellContent.tabIndex = '-1';
 
-                    let nextRow = cell.parentElement.nextElementSibling;
+                    const nextRow = cell.parentElement.nextElementSibling;
 
                     if (nextRow) {
-                        let tableRowIndex = getIndex(cell.parentElement);
+                        const tableRowIndex = getIndex(cell.parentElement);
                         const tableRows = Array.from(cell.parentElement.parentElement.children);
                         const nextTableRows = tableRows.slice(tableRowIndex + 1);
 
-                        let hasNextFocusableDate = nextTableRows.find((el) => {
-                            let focusCell = el.children[cellIndex].children[0];
+                        const hasNextFocusableDate = nextTableRows.find((el) => {
+                            const focusCell = el.children[cellIndex].children[0];
 
                             return !getAttribute(focusCell, 'data-p-disabled');
                         });
 
                         if (hasNextFocusableDate) {
-                            let focusCell = hasNextFocusableDate.children[cellIndex].children[0];
+                            const focusCell = hasNextFocusableDate.children[cellIndex].children[0];
 
                             focusCell.tabIndex = '0';
                             focusCell.focus();
@@ -1913,21 +1913,21 @@ export default {
                         this.overlayVisible = false;
                         this.focused = true;
                     } else {
-                        let prevRow = cell.parentElement.previousElementSibling;
+                        const prevRow = cell.parentElement.previousElementSibling;
 
                         if (prevRow) {
-                            let tableRowIndex = getIndex(cell.parentElement);
+                            const tableRowIndex = getIndex(cell.parentElement);
                             const tableRows = Array.from(cell.parentElement.parentElement.children);
                             const prevTableRows = tableRows.slice(0, tableRowIndex).reverse();
 
-                            let hasNextFocusableDate = prevTableRows.find((el) => {
-                                let focusCell = el.children[cellIndex].children[0];
+                            const hasNextFocusableDate = prevTableRows.find((el) => {
+                                const focusCell = el.children[cellIndex].children[0];
 
                                 return !getAttribute(focusCell, 'data-p-disabled');
                             });
 
                             if (hasNextFocusableDate) {
-                                let focusCell = hasNextFocusableDate.children[cellIndex].children[0];
+                                const focusCell = hasNextFocusableDate.children[cellIndex].children[0];
 
                                 focusCell.tabIndex = '0';
                                 focusCell.focus();
@@ -1947,20 +1947,20 @@ export default {
 
                 case 'ArrowLeft': {
                     cellContent.tabIndex = '-1';
-                    let prevCell = cell.previousElementSibling;
+                    const prevCell = cell.previousElementSibling;
 
                     if (prevCell) {
                         const cells = Array.from(cell.parentElement.children);
                         const prevCells = cells.slice(0, cellIndex).reverse();
 
-                        let hasNextFocusableDate = prevCells.find((el) => {
-                            let focusCell = el.children[0];
+                        const hasNextFocusableDate = prevCells.find((el) => {
+                            const focusCell = el.children[0];
 
                             return !getAttribute(focusCell, 'data-p-disabled');
                         });
 
                         if (hasNextFocusableDate) {
-                            let focusCell = hasNextFocusableDate.children[0];
+                            const focusCell = hasNextFocusableDate.children[0];
 
                             focusCell.tabIndex = '0';
                             focusCell.focus();
@@ -1977,19 +1977,19 @@ export default {
 
                 case 'ArrowRight': {
                     cellContent.tabIndex = '-1';
-                    let nextCell = cell.nextElementSibling;
+                    const nextCell = cell.nextElementSibling;
 
                     if (nextCell) {
                         const cells = Array.from(cell.parentElement.children);
                         const nextCells = cells.slice(cellIndex + 1);
-                        let hasNextFocusableDate = nextCells.find((el) => {
-                            let focusCell = el.children[0];
+                        const hasNextFocusableDate = nextCells.find((el) => {
+                            const focusCell = el.children[0];
 
                             return !getAttribute(focusCell, 'data-p-disabled');
                         });
 
                         if (hasNextFocusableDate) {
-                            let focusCell = hasNextFocusableDate.children[0];
+                            const focusCell = hasNextFocusableDate.children[0];
 
                             focusCell.tabIndex = '0';
                             focusCell.focus();
@@ -2028,8 +2028,8 @@ export default {
 
                 case 'Home': {
                     cellContent.tabIndex = '-1';
-                    let currentRow = cell.parentElement;
-                    let focusCell = currentRow.children[0].children[0];
+                    const currentRow = cell.parentElement;
+                    const focusCell = currentRow.children[0].children[0];
 
                     if (getAttribute(focusCell, 'data-p-disabled')) {
                         this.navigateToMonth(event, true, groupIndex);
@@ -2044,8 +2044,8 @@ export default {
 
                 case 'End': {
                     cellContent.tabIndex = '-1';
-                    let currentRow = cell.parentElement;
-                    let focusCell = currentRow.children[currentRow.children.length - 1].children[0];
+                    const currentRow = cell.parentElement;
+                    const focusCell = currentRow.children[currentRow.children.length - 1].children[0];
 
                     if (getAttribute(focusCell, 'data-p-disabled')) {
                         this.navigateToMonth(event, false, groupIndex);
@@ -2091,9 +2091,9 @@ export default {
                     this.navigationState = { backward: true };
                     this.navBackward(event);
                 } else {
-                    let prevMonthContainer = this.overlay.children[groupIndex - 1];
-                    let cells = find(prevMonthContainer, 'table td span:not([data-p-disabled="true"]):not([data-p-ink="true"])');
-                    let focusCell = cells[cells.length - 1];
+                    const prevMonthContainer = this.overlay.children[groupIndex - 1];
+                    const cells = find(prevMonthContainer, 'table td span:not([data-p-disabled="true"]):not([data-p-ink="true"])');
+                    const focusCell = cells[cells.length - 1];
 
                     focusCell.tabIndex = '0';
                     focusCell.focus();
@@ -2103,8 +2103,8 @@ export default {
                     this.navigationState = { backward: false };
                     this.navForward(event);
                 } else {
-                    let nextMonthContainer = this.overlay.children[groupIndex + 1];
-                    let focusCell = findSingle(nextMonthContainer, 'table td span:not([data-p-disabled="true"]):not([data-p-ink="true"])');
+                    const nextMonthContainer = this.overlay.children[groupIndex + 1];
+                    const focusCell = findSingle(nextMonthContainer, 'table td span:not([data-p-disabled="true"]):not([data-p-ink="true"])');
 
                     focusCell.tabIndex = '0';
                     focusCell.focus();
@@ -2118,9 +2118,9 @@ export default {
                 case 'ArrowUp':
                 case 'ArrowDown': {
                     cell.tabIndex = '-1';
-                    var cells = cell.parentElement.children;
-                    var cellIndex = getIndex(cell);
-                    let nextCell = cells[event.code === 'ArrowDown' ? cellIndex + 3 : cellIndex - 3];
+                    const cells = cell.parentElement.children;
+                    const cellIndex = getIndex(cell);
+                    const nextCell = cells[event.code === 'ArrowDown' ? cellIndex + 3 : cellIndex - 3];
 
                     if (nextCell) {
                         nextCell.tabIndex = '0';
@@ -2133,7 +2133,7 @@ export default {
 
                 case 'ArrowLeft': {
                     cell.tabIndex = '-1';
-                    let prevCell = cell.previousElementSibling;
+                    const prevCell = cell.previousElementSibling;
 
                     if (prevCell) {
                         prevCell.tabIndex = '0';
@@ -2149,7 +2149,7 @@ export default {
 
                 case 'ArrowRight': {
                     cell.tabIndex = '-1';
-                    let nextCell = cell.nextElementSibling;
+                    const nextCell = cell.nextElementSibling;
 
                     if (nextCell) {
                         nextCell.tabIndex = '0';
@@ -2210,9 +2210,9 @@ export default {
                 case 'ArrowUp':
                 case 'ArrowDown': {
                     cell.tabIndex = '-1';
-                    var cells = cell.parentElement.children;
-                    var cellIndex = getIndex(cell);
-                    let nextCell = cells[event.code === 'ArrowDown' ? cellIndex + 2 : cellIndex - 2];
+                    const cells = cell.parentElement.children;
+                    const cellIndex = getIndex(cell);
+                    const nextCell = cells[event.code === 'ArrowDown' ? cellIndex + 2 : cellIndex - 2];
 
                     if (nextCell) {
                         nextCell.tabIndex = '0';
@@ -2225,7 +2225,7 @@ export default {
 
                 case 'ArrowLeft': {
                     cell.tabIndex = '-1';
-                    let prevCell = cell.previousElementSibling;
+                    const prevCell = cell.previousElementSibling;
 
                     if (prevCell) {
                         prevCell.tabIndex = '0';
@@ -2241,7 +2241,7 @@ export default {
 
                 case 'ArrowRight': {
                     cell.tabIndex = '-1';
-                    let nextCell = cell.nextElementSibling;
+                    const nextCell = cell.nextElementSibling;
 
                     if (nextCell) {
                         nextCell.tabIndex = '0';
@@ -2344,14 +2344,14 @@ export default {
             let cell;
 
             if (this.currentView === 'month') {
-                let cells = find(this.overlay, '[data-pc-section="monthview"] [data-pc-section="month"]');
-                let selectedCell = findSingle(this.overlay, '[data-pc-section="monthview"] [data-pc-section="month"][data-p-selected="true"]');
+                const cells = find(this.overlay, '[data-pc-section="monthview"] [data-pc-section="month"]');
+                const selectedCell = findSingle(this.overlay, '[data-pc-section="monthview"] [data-pc-section="month"][data-p-selected="true"]');
 
                 cells.forEach((cell) => (cell.tabIndex = -1));
                 cell = selectedCell || cells[0];
             } else if (this.currentView === 'year') {
-                let cells = find(this.overlay, '[data-pc-section="yearview"] [data-pc-section="year"]');
-                let selectedCell = findSingle(this.overlay, '[data-pc-section="yearview"] [data-pc-section="year"][data-p-selected="true"]');
+                const cells = find(this.overlay, '[data-pc-section="yearview"] [data-pc-section="year"]');
+                const selectedCell = findSingle(this.overlay, '[data-pc-section="yearview"] [data-pc-section="year"][data-p-selected="true"]');
 
                 cells.forEach((cell) => (cell.tabIndex = -1));
                 cell = selectedCell || cells[0];
@@ -2359,7 +2359,7 @@ export default {
                 cell = findSingle(this.overlay, 'span[data-p-selected="true"]');
 
                 if (!cell) {
-                    let todayCell = findSingle(this.overlay, 'td[data-p-today="true"] span:not([data-p-disabled="true"]):not([data-p-ink="true"])');
+                    const todayCell = findSingle(this.overlay, 'td[data-p-today="true"] span:not([data-p-disabled="true"]):not([data-p-ink="true"])');
 
                     if (todayCell) cell = todayCell;
                     else cell = findSingle(this.overlay, '.p-datepicker-calendar td span:not([data-p-disabled="true"]):not([data-p-ink="true"])');
@@ -2374,13 +2374,13 @@ export default {
         },
         trapFocus(event) {
             event.preventDefault();
-            let focusableElements = getFocusableElements(this.overlay);
+            const focusableElements = getFocusableElements(this.overlay);
 
             if (focusableElements && focusableElements.length > 0) {
                 if (!document.activeElement) {
                     focusableElements[0].focus();
                 } else {
-                    let focusedIndex = focusableElements.indexOf(document.activeElement);
+                    const focusedIndex = focusableElements.indexOf(document.activeElement);
 
                     if (event.shiftKey) {
                         if (focusedIndex === -1 || focusedIndex === 0) focusableElements[focusableElements.length - 1].focus();
@@ -2430,7 +2430,7 @@ export default {
                 this.selectionStart = this.input.selectionStart;
                 this.selectionEnd = this.input.selectionEnd;
 
-                let value = this.parseValue(event.target.value);
+                const value = this.parseValue(event.target.value);
 
                 if (this.isValidSelection(value)) {
                     this.typeUpdate = true;
@@ -2483,7 +2483,7 @@ export default {
             } else if (event.code === 'Enter') {
                 if (this.manualInput && event.target.value !== null && event.target.value?.trim() !== '') {
                     try {
-                        let value = this.parseValue(event.target.value);
+                        const value = this.parseValue(event.target.value);
 
                         if (this.isValidSelection(value)) {
                             this.overlayVisible = false;
@@ -2552,10 +2552,10 @@ export default {
 
                 if (this.responsiveOptions) {
                     const comparer = localeComparator();
-                    let responsiveOptions = [...this.responsiveOptions].filter((o) => !!(o.breakpoint && o.numMonths)).sort((o1, o2) => -1 * comparer(o1.breakpoint, o2.breakpoint));
+                    const responsiveOptions = [...this.responsiveOptions].filter((o) => !!(o.breakpoint && o.numMonths)).sort((o1, o2) => -1 * comparer(o1.breakpoint, o2.breakpoint));
 
                     for (let i = 0; i < responsiveOptions.length; i++) {
-                        let { breakpoint, numMonths } = responsiveOptions[i];
+                        const { breakpoint, numMonths } = responsiveOptions[i];
                         let styles = `
                             .p-datepicker-panel[${this.$attrSelector}] .p-datepicker-calendar:nth-child(${numMonths}) .p-datepicker-next-button {
                                 display: inline-flex;
@@ -2603,7 +2603,7 @@ export default {
             if (propValue && typeof propValue !== 'string') {
                 return propValue;
             } else {
-                let today = new Date();
+                const today = new Date();
 
                 if (this.maxDate && this.maxDate < today) {
                     return this.maxDate;
@@ -2620,7 +2620,7 @@ export default {
             return this.formatValue(this.d_value);
         },
         months() {
-            let months = [];
+            const months = [];
 
             for (let i = 0; i < this.numberOfMonths; i++) {
                 let month = this.currentMonth + i;
@@ -2631,26 +2631,26 @@ export default {
                     year = year + 1;
                 }
 
-                let dates = [];
-                let firstDay = this.getFirstDayOfMonthIndex(month, year);
-                let daysLength = this.getDaysCountInMonth(month, year);
-                let prevMonthDaysLength = this.getDaysCountInPrevMonth(month, year);
+                const dates = [];
+                const firstDay = this.getFirstDayOfMonthIndex(month, year);
+                const daysLength = this.getDaysCountInMonth(month, year);
+                const prevMonthDaysLength = this.getDaysCountInPrevMonth(month, year);
                 let dayNo = 1;
-                let today = new Date();
-                let weekNumbers = [];
-                let monthRows = Math.ceil((daysLength + firstDay) / 7);
+                const today = new Date();
+                const weekNumbers = [];
+                const monthRows = Math.ceil((daysLength + firstDay) / 7);
 
                 for (let i = 0; i < monthRows; i++) {
-                    let week = [];
+                    const week = [];
 
                     if (i == 0) {
                         for (let j = prevMonthDaysLength - firstDay + 1; j <= prevMonthDaysLength; j++) {
-                            let prev = this.getPreviousMonthAndYear(month, year);
+                            const prev = this.getPreviousMonthAndYear(month, year);
 
                             week.push({ day: j, month: prev.month, year: prev.year, otherMonth: true, today: this.isToday(today, j, prev.month, prev.year), selectable: this.isSelectable(j, prev.month, prev.year, true) });
                         }
 
-                        let remainingDaysLength = 7 - week.length;
+                        const remainingDaysLength = 7 - week.length;
 
                         for (let j = 0; j < remainingDaysLength; j++) {
                             week.push({ day: dayNo, month: month, year: year, today: this.isToday(today, dayNo, month, year), selectable: this.isSelectable(dayNo, month, year, false) });
@@ -2659,7 +2659,7 @@ export default {
                     } else {
                         for (let j = 0; j < 7; j++) {
                             if (dayNo > daysLength) {
-                                let next = this.getNextMonthAndYear(month, year);
+                                const next = this.getNextMonthAndYear(month, year);
 
                                 week.push({
                                     day: dayNo - daysLength,
@@ -2695,7 +2695,7 @@ export default {
             return months;
         },
         weekDays() {
-            let weekDays = [];
+            const weekDays = [];
             let dayIndex = this.$primevue.config.locale.firstDayOfWeek;
 
             for (let i = 0; i < 7; i++) {
@@ -2715,7 +2715,7 @@ export default {
             return this.dateFormat || this.$primevue.config.locale.dateFormat;
         },
         monthPickerValues() {
-            let monthPickerValues = [];
+            const monthPickerValues = [];
 
             const isSelectableMonth = (baseMonth) => {
                 if (this.minDate) {
@@ -2746,8 +2746,8 @@ export default {
             return monthPickerValues;
         },
         yearPickerValues() {
-            let yearPickerValues = [];
-            let base = this.currentYear - (this.currentYear % 10);
+            const yearPickerValues = [];
+            const base = this.currentYear - (this.currentYear % 10);
 
             const isSelectableYear = (baseYear) => {
                 if (this.minDate) {

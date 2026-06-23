@@ -77,7 +77,8 @@
                     <!-- Slot planner tab -->
                     <TabPanel value="slots">
                         <SlotPlanner :slots="slots" :shopId="selectedShop.id"
-                            @create="onSlotCreate" @update="onSlotUpdate" @delete="onSlotDelete" />
+                            @create="onSlotCreate" @update="onSlotUpdate" @delete="onSlotDelete"
+                            @batch="onSlotBatch" />
                     </TabPanel>
                 </TabPanels>
             </Tabs>
@@ -94,7 +95,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import type { Shop, ShopWithOpenRange, TimeSlot } from '@/api/types';
+import type { Shop, ShopWithOpenRange, TimeSlot, SlotOp } from '@/api/types';
 import { shopApi, slotsApi } from '@/main';
 import { exampleShop } from '@/api/types';
 import Button from 'primevue/button';
@@ -242,6 +243,40 @@ async function onSlotUpdate(slot: Partial<TimeSlot>) {
         });
         invalidateCache();
         await loadSlots(selectedShop.value!.id);
+        toast.add({ severity: 'success', summary: t('message.success'), detail: t('admin.shop.slot_updated') });
+    } catch (e) {
+        handleError(toast, t)(e);
+    }
+}
+
+async function onSlotBatch(ops: SlotOp[]) {
+    if (!selectedShop.value) return;
+    try {
+        for (const op of ops) {
+            if (op.action === 'create') {
+                await slotsApi.create(selectedShop.value.id, {
+                    day: op.slot.day!,
+                    start_time: op.slot.start_time!,
+                    end_time: op.slot.end_time!,
+                    max_volunteers: op.slot.max_volunteers!,
+                    valid_from: op.slot.valid_from!,
+                    valid_until: op.slot.valid_until!,
+                });
+            } else if (op.action === 'update') {
+                await slotsApi.update(op.slot.id!, {
+                    day: op.slot.day!,
+                    start_time: op.slot.start_time!,
+                    end_time: op.slot.end_time!,
+                    max_volunteers: op.slot.max_volunteers!,
+                    valid_from: op.slot.valid_from!,
+                    valid_until: op.slot.valid_until!,
+                });
+            } else if (op.action === 'delete') {
+                await slotsApi.delete(op.slot.id!);
+            }
+        }
+        invalidateCache();
+        await loadSlots(selectedShop.value.id);
         toast.add({ severity: 'success', summary: t('message.success'), detail: t('admin.shop.slot_updated') });
     } catch (e) {
         handleError(toast, t)(e);

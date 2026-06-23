@@ -13,6 +13,7 @@ from shared_planner.db.models import Reservation, Shop, TimeSlot, User, Token, N
 from shared_planner.db.session import SessionLock
 from shared_planner.db.settings import get
 from shared_planner.week import monday_str
+from shared_planner import tz
 
 router = APIRouter(prefix="/res", tags=["reservations"])
 
@@ -101,12 +102,13 @@ def get_planning(
             raise HTTPException(status_code=400, detail="error.reservation.not_monday")
 
         week_end = week_start + datetime.timedelta(days=7)
-        # Fetch all reservations for this shop in this week
+        # Fetch all reservations for this shop in this week. Reservations are stored
+        # in UTC, so convert the local week bounds before querying.
         week_reservations = session.exec(
             select(Reservation).where(
                 Reservation.shop_id == shop_id,
-                Reservation.start_time >= week_start,
-                Reservation.start_time < week_end,
+                Reservation.start_time >= tz.local_to_utc(week_start),
+                Reservation.start_time < tz.local_to_utc(week_end),
             )
         ).all()
 
@@ -124,9 +126,13 @@ def get_planning(
 
             day_statuses = []
             for slot in day_slots:
-                # Find reservations that overlap with this slot
-                slot_start = datetime.datetime.combine(day_date, slot.start_time)
-                slot_end = datetime.datetime.combine(day_date, slot.end_time)
+                # Find reservations that overlap with this slot (compare in UTC)
+                slot_start = tz.local_to_utc(
+                    datetime.datetime.combine(day_date, slot.start_time)
+                )
+                slot_end = tz.local_to_utc(
+                    datetime.datetime.combine(day_date, slot.end_time)
+                )
 
                 slot_reservations = [
                     r
@@ -197,7 +203,7 @@ def book_slots(
         # Sort slots by time to determine overall range
         slots.sort(key=lambda s: s.start_time)
 
-        if req.date < datetime.date.today() and not user.admin:
+        if req.date < tz.utc_to_local(tz.now()).date() and not user.admin:
             raise HTTPException(status_code=400, detail="error.reservation.past_time")
 
         if req.date < shop.available_from.date() and not user.admin:
@@ -206,10 +212,14 @@ def book_slots(
         if req.date > shop.available_until.date() and not user.admin:
             raise HTTPException(status_code=400, detail="error.reservation.after_close")
 
-        # Verification for each slot
+        # Verification for each slot (reservations are stored in UTC)
         for slot in slots:
-            slot_start = datetime.datetime.combine(req.date, slot.start_time)
-            slot_end = datetime.datetime.combine(req.date, slot.end_time)
+            slot_start = tz.local_to_utc(
+                datetime.datetime.combine(req.date, slot.start_time)
+            )
+            slot_end = tz.local_to_utc(
+                datetime.datetime.combine(req.date, slot.end_time)
+            )
 
             # Use overlap check for existing reservations
             query = select(Reservation).where(
@@ -227,8 +237,12 @@ def book_slots(
             if len(existing) >= slot.max_volunteers and not user.admin:
                 raise HTTPException(status_code=400, detail="error.reservation.overlap")
 
-        overall_start = datetime.datetime.combine(req.date, slots[0].start_time)
-        overall_end = datetime.datetime.combine(req.date, slots[-1].end_time)
+        overall_start = tz.local_to_utc(
+            datetime.datetime.combine(req.date, slots[0].start_time)
+        )
+        overall_end = tz.local_to_utc(
+            datetime.datetime.combine(req.date, slots[-1].end_time)
+        )
 
         new_reservation = Reservation(
             user_id=user.id,
@@ -250,10 +264,10 @@ def book_slots(
                     ),
                     "ics": new_reservation.ics_data(),
                 },
-                route=f"/shops/{shop.id}/{monday_str(overall_start)}",
+                route=f"/shops/{shop.id}/{monday_str(tz.utc_to_local(overall_start))}",
                 mail=get("email_reservation_created").asBool()
                 and (
-                    datetime.datetime.now()
+                    tz.now()
                     < (
                         overall_start
                         - datetime.timedelta(
@@ -279,7 +293,7 @@ def book_slots(
                             (overall_end - overall_start).total_seconds() // 60
                         ),
                     },
-                    route=f"/shops/{shop.id}/{monday_str(overall_start)}",
+                    route=f"/shops/{shop.id}/{monday_str(tz.utc_to_local(overall_start))}",
                     is_reminder=True,
                     mail=get("email_admin_reservation_created").asBool(),
                 )
@@ -324,7 +338,7 @@ def cancel_reservation(
                     ),
                     "ics": reservation.ics_data(cancel=True),
                 },
-                route=f"/shops/{reservation.shop.id}/{monday_str(reservation.start_time)}",
+                route=f"/shops/{reservation.shop.id}/{monday_str(tz.utc_to_local(reservation.start_time))}",
                 mail=get("email_reservation_cancelled").asBool(),
             )
         )
@@ -347,7 +361,7 @@ def cancel_reservation(
                             // 60
                         ),
                     },
-                    route=f"/shops/{reservation.shop.id}/{monday_str(reservation.start_time)}",
+                    route=f"/shops/{reservation.shop.id}/{monday_str(tz.utc_to_local(reservation.start_time))}",
                     mail=get("email_admin_reservation_cancelled").asBool(),
                 )
             )
@@ -403,7 +417,7 @@ def get_user_future_reservations(
             [
                 ReservedTimeRange.from_reservation(res, user)
                 for res in filter(
-                    lambda res: res.end_time > datetime.datetime.now(),
+                    lambda res: res.end_time > tz.now(),
                     user.reservations,
                 )
             ],
@@ -429,7 +443,8 @@ def search(
             week_start = datetime.datetime.strptime(monday, "%Y-%m-%d")
             week_end = week_start + datetime.timedelta(days=7)
             query = query.where(
-                Reservation.start_time >= week_start, Reservation.start_time < week_end
+                Reservation.start_time >= tz.local_to_utc(week_start),
+                Reservation.start_time < tz.local_to_utc(week_end),
             )
         reservations = session.exec(query)
         result = [ReservedTimeRange.from_reservation(res, None) for res in reservations]
@@ -487,7 +502,7 @@ def reassign_reservation(
                     ),
                     "ics": reservation.ics_data(),
                 },
-                route=f"/shops/{reservation.shop.id}/{monday_str(reservation.start_time)}",
+                route=f"/shops/{reservation.shop.id}/{monday_str(tz.utc_to_local(reservation.start_time))}",
                 mail=True,
             )
         )

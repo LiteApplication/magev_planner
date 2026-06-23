@@ -3,9 +3,20 @@ services:
     build:
       context: .
       target: production
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     volumes:
       - ./database.db:/app/database.db
+      - ./uploads:/app/uploads
     env_file: .env
+    restart: unless-stopped
+
+  nginx:
+    build:
+      context: .
+      target: frontend-prod
+    ports:
+      - "8000:80"
+    depends_on:
+      - app
     restart: unless-stopped

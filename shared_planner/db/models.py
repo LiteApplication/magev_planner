@@ -3,6 +3,8 @@ import datetime
 import hashlib
 import json
 from typing import TYPE_CHECKING
+
+from shared_planner import tz
 from fastapi.exceptions import HTTPException
 from sqlmodel import (
     Field,
@@ -127,7 +129,7 @@ class Reservation(SQLModel, table=True):
     def find_unsent_reminders(
         session: "SessionLock", hours_before: int
     ) -> list["Reservation"]:
-        time_before = datetime.datetime.now() + datetime.timedelta(hours=hours_before)
+        time_before = tz.now() + datetime.timedelta(hours=hours_before)
         return session.exec(
             select(Reservation).where(
                 not_(Reservation.reminder_sent),
@@ -162,12 +164,12 @@ class Token(SQLModel, table=True):
     token_type: str = "bearer"
 
     def is_expired(self) -> bool:
-        return self.expires_at < datetime.datetime.now()
+        return self.expires_at < tz.now()
 
     def renew(self):
         from shared_planner.db.settings import get  # circular import
 
-        self.expires_at = datetime.datetime.now() + datetime.timedelta(
+        self.expires_at = tz.now() + datetime.timedelta(
             hours=get("token_validity").asInt()
         )
 
@@ -178,8 +180,59 @@ class Token(SQLModel, table=True):
         return Token(
             user=user,
             access_token=secrets.token_urlsafe(32),
-            expires_at=datetime.datetime.now()
+            expires_at=tz.now()
             + datetime.timedelta(hours=get("token_validity").asInt()),
+        )
+
+
+class MailTemplate(SQLModel, table=True):
+    """Admin-edited markdown override of a codebase email template.
+
+    A row exists only when the template has been customised; otherwise the
+    codebase default (templates/markdown/<name>.md) is used.
+    """
+
+    name: str = Field(primary_key=True)  # e.g. "first_mail", "notification.reminder"
+    content: str  # Markdown source
+
+
+class Document(SQLModel, table=True):
+    """An uploaded file (image, document, ...) referenceable by a public URL."""
+
+    id: int = Field(primary_key=True, default=None)
+    filename: str  # Original filename (for display)
+    stored_name: str  # Name on disk (uuid + extension)
+    content_type: str = "application/octet-stream"
+    size: int = 0  # Size in bytes
+    created_at: datetime.datetime = Field(default_factory=tz.now)
+
+
+class Enterprise(SQLModel, table=True):
+    """Represents an enterprise/organisation a volunteer can register under."""
+
+    id: int = Field(primary_key=True, default=None)
+    slug: str = Field(index=True, unique=True)  # URL-friendly identifier
+    name: str  # Displayed name (also stored in User.group)
+    # Space/comma/newline separated email domains. Empty = accept any email.
+    email_domains: str = ""
+    # If set, a required consent checkbox with this text is shown at registration.
+    checkbox_text: str = ""
+    # Optional per-enterprise message injected into the welcome and reminder emails.
+    welcome_message: str = ""
+    reminder_message: str = ""
+
+    def domains_list(self) -> list[str]:
+        raw = self.email_domains.replace(",", " ").split()
+        return [d.strip().lstrip("@").lower() for d in raw if d.strip()]
+
+    def matches_email(self, email: str) -> bool:
+        """Whether the given email satisfies this enterprise's domain condition."""
+        domains = self.domains_list()
+        if not domains:
+            return True
+        email_domain = email.strip().lower().rsplit("@", 1)[-1]
+        return any(
+            email_domain == d or email_domain.endswith("." + d) for d in domains
         )
 
 
@@ -237,7 +290,7 @@ class Notification(SQLModel, table=True):
             message=message,
             data=json.dumps(data) if data else "{}",
             route=route,
-            date=datetime.datetime.now(),
+            date=tz.now(),
             mail=mail,
             is_reminder=is_reminder,
         )
@@ -254,7 +307,7 @@ class Notification(SQLModel, table=True):
                     ),
                 ),
                 not_(Notification.read),
-                Notification.date < datetime.datetime.now(),
+                Notification.date < tz.now(),
             )
         ).all()
 
@@ -264,7 +317,7 @@ class Notification(SQLModel, table=True):
             select(Notification).where(
                 Notification.mail,
                 not_(Notification.mail_sent),
-                Notification.date < datetime.datetime.now(),
+                Notification.date < tz.now(),
             )
         ).all()
 
@@ -280,7 +333,7 @@ class Notification(SQLModel, table=True):
                     ),
                 ),
                 not_(Notification.read),
-                Notification.date < datetime.datetime.now(),
+                Notification.date < tz.now(),
             )
         ).first()
 
@@ -295,7 +348,7 @@ class Notification(SQLModel, table=True):
                         true() if user.admin else false(),
                     ),
                 ),
-                Notification.date < datetime.datetime.now(),
+                Notification.date < tz.now(),
             )
         ).all()
 
@@ -321,7 +374,7 @@ class PasswordReset(SQLModel, table=True):
         #    select(func.count(PasswordReset.id)).where(
         #        PasswordReset.user_id == user.id,
         #        not_(PasswordReset.used),
-        #        PasswordReset.expires_at > datetime.datetime.now(),
+        #        PasswordReset.expires_at > tz.now(),
         #    )
         # ).first()
 
@@ -332,7 +385,7 @@ class PasswordReset(SQLModel, table=True):
         return PasswordReset(
             user=user,
             token=secrets.token_urlsafe(32),
-            expires_at=datetime.datetime.now()
+            expires_at=tz.now()
             + datetime.timedelta(hours=get("reset_token_validity").asInt()),
         )
 
@@ -346,7 +399,7 @@ class PasswordReset(SQLModel, table=True):
                 status_code=404, detail="error.auth.invalid_reset_token"
             )
 
-        if result.expires_at < datetime.datetime.now():
+        if result.expires_at < tz.now():
             raise HTTPException(
                 status_code=400, detail="error.auth.expired_reset_token"
             )

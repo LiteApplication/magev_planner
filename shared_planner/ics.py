@@ -15,13 +15,10 @@ def create_ics(
 ) -> str:
     """Create an iCalendar file for an event"""
 
-    # Parse the start time
+    # Parse the start time. Reservations are stored in UTC, so the incoming
+    # string is already UTC.
     start_time = datetime.strptime(start_time, "%Y-%m-%d %H:%M")
-
-    start_time = pytz.timezone("Europe/Paris").localize(start_time)
-
-    # Convert to UTC
-    start_time = start_time.astimezone(pytz.utc)
+    start_time = pytz.utc.localize(start_time)
     # Round that to te nearest 15 minutes
     start_time = start_time + timedelta(minutes=7.5)
     start_time -= timedelta(
@@ -52,9 +49,9 @@ def create_ics(
     # Create the iCalendar content
     method = "PUBLISH" if (not update and not cancel) else "REQUEST"
     status = "CANCELLED" if cancel else "CONFIRMED"
-    start_time_str = start_time.strftime(f"{dt_format}Z")
-    end_time_str = end_time.strftime(f"{dt_format}Z")
-    now_str = datetime.now().strftime(f"{dt_format}Z")
+    start_time_str = start_time.strftime(dt_format)
+    end_time_str = end_time.strftime(dt_format)
+    now_str = datetime.now(timezone.utc).strftime(dt_format)
 
     return f"""BEGIN:VCALENDAR
 VERSION:2.0

@@ -1,46 +1,90 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
-import { ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { defineComponent } from 'vue'
+import { useRoute } from 'vue-router';
 
 import InputText from 'primevue/inputtext';
 import Select from 'primevue/select';
 import Button from 'primevue/button';
 import Card from 'primevue/card';
+import Checkbox from 'primevue/checkbox';
 
-
-import { authApi } from '@/main';
+import type { EnterprisePublic } from '@/api/types';
+import { authApi, enterpriseApi } from '@/main';
 
 const { t: $t } = useI18n();
-
+const route = useRoute();
 
 const email = ref('');
 const full_name = ref('');
 const error_msg = ref('');
-const group = ref({ name: '', code: '' });
+const accepted_terms = ref(false);
+
+const enterprises = ref<EnterprisePublic[]>([]);
+const selected = ref<EnterprisePublic | null>(null);
 
 const loading = ref(false);
 const mail_sent = ref(false);
 
-const groups = [
-    { name: 'MAGEV', code: 'MAGEV' },
-    { name: 'TOTAL', code: 'TOTAL' },
-    { name: 'ADA', code: 'ADA' },
-    { name: 'CBRE', code: 'CBRE' },
-    { name: 'SalesForce', code: 'SalesForce' },
-    { name: 'ABEILLE', code: 'ABEILLE' },
-    { name: "Diffuz", code: "Diffuz" },
-    { name: "France Bénévolat", code: "France Bénévolat" },
-    { name: "Bénévolt", code: "Bénévolt" },
-];
+// When the route carries a slug, the enterprise is locked and the dropdown is hidden.
+const lockedSlug = computed(() => (route.params.slug as string | undefined) || null);
+const isLocked = computed(() => lockedSlug.value !== null && selected.value !== null);
+
+function parseDomains(raw: string): string[] {
+    return raw.replace(/,/g, ' ').split(/\s+/).map(d => d.trim().replace(/^@/, '').toLowerCase()).filter(Boolean);
+}
+
+function matchesEmail(ent: EnterprisePublic, mail: string): boolean {
+    const domains = parseDomains(ent.email_domains);
+    if (domains.length === 0) return true;
+    const emailDomain = mail.trim().toLowerCase().split('@').pop() || '';
+    return domains.some(d => emailDomain === d || emailDomain.endsWith('.' + d));
+}
+
+onMounted(async () => {
+    try {
+        enterprises.value = await enterpriseApi.listPublic();
+    } catch {
+        error_msg.value = $t('error.unknown');
+        return;
+    }
+    if (lockedSlug.value) {
+        selected.value = enterprises.value.find(e => e.slug === lockedSlug.value) ?? null;
+        if (!selected.value) error_msg.value = $t('error.auth.enterprise_invalid');
+    }
+});
+
+// Auto-detect the enterprise from the typed email (unless locked by slug).
+watch(email, (mail) => {
+    if (lockedSlug.value) return;
+    if (selected.value && matchesEmail(selected.value, mail)) return;
+    const match = enterprises.value.find(e => parseDomains(e.email_domains).length > 0 && matchesEmail(e, mail));
+    if (match) selected.value = match;
+});
+
+// Reset the consent checkbox whenever the enterprise changes.
+watch(selected, () => { accepted_terms.value = false; });
+
+const emailMismatch = computed(() =>
+    !!selected.value && !!email.value && !matchesEmail(selected.value, email.value)
+);
 
 const onSubmit = async () => {
-    loading.value = true;
-    if (email.value === '' || full_name.value === '' || group.value.code === '') {
+    if (email.value === '' || full_name.value === '' || !selected.value) {
         error_msg.value = $t('error.fields');
         return;
     }
-    authApi.register(email.value, full_name.value, group.value?.code).then(
+    if (emailMismatch.value) {
+        error_msg.value = $t('error.auth.email_domain_mismatch');
+        return;
+    }
+    if (selected.value.checkbox_text && !accepted_terms.value) {
+        error_msg.value = $t('error.auth.terms_not_accepted');
+        return;
+    }
+    loading.value = true;
+    authApi.register(email.value, full_name.value, selected.value.slug, accepted_terms.value).then(
         () => {
             error_msg.value = '';
             loading.value = false;
@@ -50,24 +94,18 @@ const onSubmit = async () => {
         error => {
             if (error.response) {
                 error_msg.value = $t(error.response.data.detail);
-                console.log(error.response.data)
             } else {
                 error_msg.value = $t('error.unknown');
                 console.error(error);
             }
             loading.value = false;
-
         }
     );
 };
-
-
-
 </script>
 
 <template>
     <div class="register-container">
-
         <Card class="register-card">
             <template #title>{{ $t("message.register") }}</template>
             <template #content>
@@ -75,7 +113,6 @@ const onSubmit = async () => {
                     <p>{{ $t("message.mail_sent") }}</p>
                 </div>
                 <div class="fields" v-else>
-
                     <div class="flex flex-col gap-2">
                         <label for="email">{{ $t("message.email") }}</label>
                         <InputText id="email" v-model="email" autocomplete="email" />
@@ -85,13 +122,23 @@ const onSubmit = async () => {
                         <InputText id="full_name" v-model="full_name" autocomplete="name" />
                     </div>
 
-                    <div class="flex flex-col gap-2">
-                        <label for="full_name">{{ $t("message.group") }}</label>
-                        <Select v-model="group" inputId="group" :options="groups" optionLabel="name" class="w-full" />
+                    <div class="flex flex-col gap-2" v-if="isLocked">
+                        <label>{{ $t("message.group") }}</label>
+                        <div class="locked-enterprise">{{ selected?.name }}</div>
+                    </div>
+                    <div class="flex flex-col gap-2" v-else>
+                        <label for="group">{{ $t("message.group") }}</label>
+                        <Select v-model="selected" inputId="group" :options="enterprises" optionLabel="name"
+                            class="w-full" :placeholder="$t('message.group')" />
                     </div>
 
-                </div>
+                    <p v-if="emailMismatch" class="warn">{{ $t('error.auth.email_domain_mismatch') }}</p>
 
+                    <div class="flex items-start gap-2 mt-1" v-if="selected?.checkbox_text">
+                        <Checkbox v-model="accepted_terms" :binary="true" inputId="accept-terms" />
+                        <label for="accept-terms" class="text-sm">{{ selected.checkbox_text }}</label>
+                    </div>
+                </div>
             </template>
             <template #footer>
                 <p class="error" v-if="error_msg != ''"> {{ error_msg }}</p>
@@ -106,9 +153,6 @@ const onSubmit = async () => {
 </template>
 
 <script lang="ts">
-
-
-
 export default defineComponent({
     name: 'RegisterView',
     components: {
@@ -141,6 +185,19 @@ export default defineComponent({
 
 .p-field {
     margin-top: 1.6 rem;
+}
+
+.locked-enterprise {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--p-content-border-color);
+    border-radius: var(--p-border-radius-md, 6px);
+    background: var(--p-content-background);
+    font-weight: 600;
+}
+
+.warn {
+    color: #d97706;
+    font-size: 0.85rem;
 }
 
 .error {

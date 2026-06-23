@@ -1,5 +1,6 @@
 database.db
 dummy_data.json
+uploads/
 **.pyc
 .env
 .vscode/

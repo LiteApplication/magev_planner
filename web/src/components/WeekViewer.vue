@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, defineComponent, onMounted, ref, watch } from 'vue';
-import { reservationApi, shopApi } from '@/main';
+import { reservationApi, shopApi, authApi } from '@/main';
 import type { SlotStatus, Shop } from '@/api/types';
 import DayTimeline from './DayTimeline.vue';
 import { useI18n } from 'vue-i18n';
@@ -23,6 +23,12 @@ const props = defineProps({
 
 const planning = ref<SlotStatus[][]>([[], [], [], [], [], [], []]);
 const shopData = ref<Shop | null>(null);
+const isAdmin = ref(false);
+
+// A slot is "past" once its start time has elapsed. Non-admins cannot book it.
+function isPastSlot(date: string, startTime: string): boolean {
+    return new Date(`${date}T${startTime}`) < new Date();
+}
 const isLoading = defineModel('loading', { type: Boolean, default: false });
 
 // Multi-slot selection: key = `${slot_id}:${date}`
@@ -83,6 +89,7 @@ const displayedTasks = computed<Task[][]>(() =>
             const isSelected = selectedSlots.value.has(key);
             const bookedByOthers = ss.booked_count - (ss.booked_by_me ? 1 : 0);
             const remaining = ss.slot.max_volunteers - ss.booked_count;
+            const past = !isAdmin.value && isPastSlot(ss.date, ss.slot.start_time);
             const description = `${ss.slot.start_time.slice(0, 5)}–${ss.slot.end_time.slice(0, 5)} · ${t('message.reservation.spots_taken', { booked: ss.booked_count, max: ss.slot.max_volunteers })}`;
 
             const common = {
@@ -122,12 +129,14 @@ const displayedTasks = computed<Task[][]>(() =>
 
             // Available lanes
             for (let i = 0; i < remaining; i++) {
-                const isThisOneSelected = isSelected && i === 0;
+                const isThisOneSelected = isSelected && i === 0 && !past;
                 tasks.push({
                     ...common,
-                    color: isThisOneSelected ? '#16a34a' : '#22c55e',
-                    cursor: ss.booked_by_me ? 'not-allowed' : 'pointer',
-                    title: t('message.reservation.spots_remaining', { n: remaining }),
+                    color: past ? '#94a3b8' : (isThisOneSelected ? '#16a34a' : '#22c55e'),
+                    cursor: (past || ss.booked_by_me) ? 'not-allowed' : 'pointer',
+                    title: past
+                        ? t('message.reservation.past')
+                        : t('message.reservation.spots_remaining', { n: remaining }),
                     status: 0,
                     selected: isThisOneSelected,
                 });
@@ -140,12 +149,14 @@ const displayedTasks = computed<Task[][]>(() =>
 async function fetchPlanning() {
     isLoading.value = true;
     try {
-        const [shop, plan] = await Promise.all([
+        const [shop, plan, me] = await Promise.all([
             shopApi.get(props.shopId),
             reservationApi.getPlanning(props.shopId, props.week),
+            authApi.me(),
         ]);
         shopData.value = shop;
         planning.value = plan;
+        isAdmin.value = me.admin;
     } catch (e) {
         handleError(toast, t, 'error.shop.not_loaded')(e);
     } finally {

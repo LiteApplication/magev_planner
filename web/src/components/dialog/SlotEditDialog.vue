@@ -41,7 +41,9 @@
                 <Button v-if="slot?.id" :label="$t('message.delete')" severity="danger" text @click="onDelete" />
                 <div class="flex gap-2 ml-auto">
                     <Button :label="$t('message.cancel')" text @click="visible = false" />
-                    <Button :label="$t('message.save')" @click="onSave" />
+                    <SplitButton v-if="slot?.id" :label="$t('admin.shop.slot_save_all')" :model="saveMenuItems"
+                        @click="onSave('all')" />
+                    <Button v-else :label="$t('message.save')" @click="onSave('all')" />
                 </div>
             </div>
         </template>
@@ -50,9 +52,11 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
-import type { TimeSlot } from '@/api/types';
+import type { TimeSlot, SaveMode } from '@/api/types';
+import { useI18n } from 'vue-i18n';
 import Dialog from 'primevue/dialog';
 import Button from 'primevue/button';
+import SplitButton from 'primevue/splitbutton';
 import InputNumber from 'primevue/inputnumber';
 import InputMask from 'primevue/inputmask';
 import Select from 'primevue/select';
@@ -65,13 +69,19 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    save: [slot: Partial<TimeSlot>],
+    save: [slot: Partial<TimeSlot>, mode: SaveMode],
     delete: [slotId: number]
 }>();
 
 const visible = defineModel<boolean>('visible', { default: false });
 
+const { t } = useI18n();
 const error = ref<string | null>(null);
+
+const saveMenuItems = computed(() => [
+    { label: t('admin.shop.slot_save_single'), command: () => onSave('single') },
+    { label: t('admin.shop.slot_save_upcoming'), command: () => onSave('upcoming') },
+]);
 
 const form = ref({
     day: 0,
@@ -101,7 +111,7 @@ function toDateStr(d: Date): string {
     return local.toISOString().slice(0, 10);
 }
 
-function onSave() {
+function onSave(mode: SaveMode) {
     if (!form.value.start_time.match(/^\d{2}:\d{2}$/) || !form.value.end_time.match(/^\d{2}:\d{2}$/)) {
         error.value = 'Invalid time format';
         return;
@@ -116,7 +126,7 @@ function onSave() {
         max_volunteers: form.value.max_volunteers,
         valid_from: toDateStr(form.value.valid_from_date),
         valid_until: toDateStr(form.value.valid_until_date),
-    });
+    }, mode);
     visible.value = false;
 }
 

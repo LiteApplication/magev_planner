@@ -1,8 +1,5 @@
-import os
-from fastapi import FastAPI, HTTPException
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.responses import FileResponse
 from contextlib import asynccontextmanager
 
 from shared_planner.api.auth import router as auth_router
@@ -12,17 +9,21 @@ from shared_planner.api.slots import router as slots_router
 from shared_planner.api.reservations import router as reservations_router
 from shared_planner.api.settings import router as settings_router
 from shared_planner.api.notifications import router as notifications_router
-from shared_planner.mailer_daemon import start_mailer_daemon, stop_mailer_daemon
-from pathlib import Path
+from shared_planner.api.enterprises import (
+    router as enterprises_router,
+    ensure_default_enterprises,
+)
+from shared_planner.api.documents import router as documents_router
+from shared_planner.api.mail_templates import router as mail_templates_router
 
 
 @asynccontextmanager
 async def mailer_daemon_context(app: FastAPI):
-    start_mailer_daemon()
+    ensure_default_enterprises()
     try:
         yield
     finally:
-        stop_mailer_daemon()
+        pass
 
 
 app = FastAPI(
@@ -32,8 +33,6 @@ app = FastAPI(
     version="1.0",
     lifespan=mailer_daemon_context,
 )
-
-BASE_DIR = Path(__file__).resolve().parent.parent.parent / "web" / "dist"
 
 app.add_middleware(
     CORSMiddleware,
@@ -51,19 +50,6 @@ app.include_router(slots_router)
 app.include_router(reservations_router)
 app.include_router(settings_router)
 app.include_router(notifications_router)
-
-
-def sanitize_path(path: str) -> str:
-    return os.path.normpath(path).replace("..", "")
-
-
-@app.get("/{rest_of_path:path}")
-def serve_my_app(rest_of_path: str):
-    rest_of_path = sanitize_path(rest_of_path)
-
-    if rest_of_path == "" or rest_of_path == "/" or rest_of_path == ".":
-        return FileResponse(BASE_DIR / "index.html")
-
-    if (BASE_DIR / rest_of_path).exists():
-        return FileResponse(BASE_DIR / rest_of_path)
-    return FileResponse(BASE_DIR / "index.html")
+app.include_router(enterprises_router)
+app.include_router(documents_router)
+app.include_router(mail_templates_router)

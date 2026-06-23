@@ -33,7 +33,7 @@ def create_user(
         # Check if the user already exists
         statement = select(User).where(User.email == user_data.email)
         user = session.exec(statement).first()
-        if user is not None:
+        if user is not None and user.hashed_password:
             raise HTTPException(status_code=400, detail="error.user.already_exists")
 
         # sanitize user input
