@@ -41,7 +41,9 @@ jobs:
       - name: Log in and push ${{ matrix.name }} image
         env:
           REG_USER: ${{ github.actor }}
-          REG_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # A token with write:package scope (the built-in GITHUB_TOKEN can
+          # authenticate but cannot write packages). Stored as a repo secret.
+          REG_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
         run: |
           set -eu
           IMAGE="${IMAGE_BASE}-${{ matrix.name }}"
