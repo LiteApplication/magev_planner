@@ -1,5 +1,6 @@
 import datetime
 import json
+import os
 from sqlmodel import SQLModel, create_engine, Session as _Session
 from sqlalchemy import Engine
 from shared_planner import tz
@@ -45,12 +46,20 @@ def _run_migrations(engine: Engine) -> None:
                 conn.commit()
 
 
+# Directory holding the SQLite database file. Defaults to the current working
+# directory (so ``./database.db`` for local dev); set DATA_DIR to a mounted
+# folder in production so the database lives on a persistent volume.
+DATA_DIR = os.environ.get("DATA_DIR", ".")
+DB_PATH = os.path.join(DATA_DIR, "database.db")
+
+
 class EngineContainer(metaclass=Singleton):
     engine: Engine
 
     def __init__(self):
+        os.makedirs(DATA_DIR, exist_ok=True)
         self.engine = create_engine(
-            "sqlite:///database.db", pool_timeout=10, max_overflow=50, pool_size=5
+            f"sqlite:///{DB_PATH}", pool_timeout=10, max_overflow=50, pool_size=5
         )
         SQLModel.metadata.create_all(self.engine)
         _run_migrations(self.engine)
