@@ -28,9 +28,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Log in to the Forgejo container registry
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | buildah login -u "${{ github.actor }}" --password-stdin "$REGISTRY"
-
       - name: Build ${{ matrix.name }} image
         run: |
           set -eu
@@ -41,13 +38,15 @@ jobs:
             -t "${IMAGE}:${{ github.sha }}" \
             -f Dockerfile .
 
-      - name: Push ${{ matrix.name }} image
+      - name: Log in and push ${{ matrix.name }} image
+        env:
+          REG_USER: ${{ github.actor }}
+          REG_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
           IMAGE="${IMAGE_BASE}-${{ matrix.name }}"
+          # Login and push in the same step so the auth file is guaranteed to be present.
+          echo "$REG_TOKEN" | buildah login -u "$REG_USER" --password-stdin "$REGISTRY"
           buildah push "${IMAGE}:latest"
           buildah push "${IMAGE}:${{ github.sha }}"
-
-      - name: Logout
-        if: always()
-        run: buildah logout "$REGISTRY" || true
+          buildah logout "$REGISTRY" || true
