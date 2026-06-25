@@ -9,10 +9,7 @@ from shared_planner.api.slots import router as slots_router
 from shared_planner.api.reservations import router as reservations_router
 from shared_planner.api.settings import router as settings_router
 from shared_planner.api.notifications import router as notifications_router
-from shared_planner.api.enterprises import (
-    router as enterprises_router,
-    ensure_default_enterprises,
-)
+from shared_planner.api.enterprises import router as enterprises_router
 from shared_planner.api.documents import router as documents_router
 from shared_planner.api.mail_templates import router as mail_templates_router
 from shared_planner.api.export import router as export_router
@@ -20,11 +17,7 @@ from shared_planner.api.export import router as export_router
 
 @asynccontextmanager
 async def mailer_daemon_context(app: FastAPI):
-    ensure_default_enterprises()
-    try:
-        yield
-    finally:
-        pass
+    yield
 
 
 app = FastAPI(

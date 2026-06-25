@@ -11,34 +11,10 @@ from shared_planner.db.session import SessionLock
 router = APIRouter(prefix="/enterprises", tags=["enterprises"])
 
 
-# Initial enterprises seeded when the table is empty (previously hardcoded in the UI).
-DEFAULT_ENTERPRISES = [
-    "MAGEV",
-    "TOTAL",
-    "ADA",
-    "CBRE",
-    "SalesForce",
-    "ABEILLE",
-    "Diffuz",
-    "France Bénévolat",
-    "Bénévolt",
-]
-
-
 def slugify(value: str) -> str:
     value = value.strip().lower()
     value = re.sub(r"[^\w]+", "-", value, flags=re.UNICODE)
     return value.strip("-")
-
-
-def ensure_default_enterprises():
-    """Seed the default enterprises once, if none exist yet."""
-    with SessionLock() as session:
-        if session.exec(select(Enterprise)).first() is not None:
-            return
-        for name in DEFAULT_ENTERPRISES:
-            session.add(Enterprise(slug=slugify(name), name=name))
-        session.commit()
 
 
 class EnterprisePublic(BaseModel):
