@@ -1,5 +1,5 @@
 import { api } from ".";
-import type { BookSlotRequest, BookMultipleSlotsRequest, ReservedTimeRange, SlotStatus, SlotBooking } from "./types";
+import type { BookSlotRequest, BookMultipleSlotsRequest, ReservedTimeRange, SlotStatus, SlotBooking, DaySlot } from "./types";
 
 export default class ReservationApi {
     async getPlanning(shopId: number, monday: string): Promise<SlotStatus[][]> {
@@ -9,6 +9,11 @@ export default class ReservationApi {
 
     async getSlotBookings(shopId: number, date: string, slotId: number): Promise<SlotBooking[]> {
         const result = await api.get(`/res/${shopId}/${date}/${slotId}/bookings`);
+        return result.data;
+    }
+
+    async getDayBookings(shopId: number, date: string): Promise<DaySlot[]> {
+        const result = await api.get(`/res/${shopId}/${date}/day`);
         return result.data;
     }
 

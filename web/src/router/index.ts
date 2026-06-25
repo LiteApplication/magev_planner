@@ -39,6 +39,11 @@ const router = createRouter({
       component: () => import('../views/ShopsView.vue')
     },
     {
+      path: '/daily',
+      name: 'daily',
+      component: () => import('../views/admin/AdminDailyView.vue')
+    },
+    {
       path: '/shops/:id/:week',
       name: 'shop',
       component: () => import('../views/ShopView.vue')

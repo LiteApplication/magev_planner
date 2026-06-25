@@ -47,6 +47,11 @@ const items = ref<any>([
         icon: PrimeIcons.PLUS,
         route: "/shops"
     }, {
+        label: $t("menu.daily"),
+        icon: PrimeIcons.LIST_CHECK,
+        adminRequired: true,
+        route: "/daily"
+    }, {
         label: $t("menu.admin.title"),
         icon: PrimeIcons.COG,
         adminRequired: true,

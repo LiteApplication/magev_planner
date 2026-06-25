@@ -372,6 +372,22 @@ const messages = {
         filter_no_shop_found: "No shops found",
         no_reservations: "No reservations found",
       },
+      daily: {
+        title: "Daily roster",
+        select_shop: "Select a shop",
+        pick_shop_prompt: "Select a shop to see who is scheduled.",
+        no_slots: "No slots on this day.",
+        nobody: "Nobody scheduled yet.",
+        total_people: "{count} scheduled",
+        validated: "Validated",
+        call: "Call",
+        email: "Email",
+        add: "Add someone",
+        added: "Person added to the slot.",
+        remove: "Remove",
+        removed: "Person removed from the slot.",
+        remove_confirm: "Remove {name} from this slot?",
+      },
       mail_templates: {
         insert_button: "Insert a button",
         insert_image: "Insert an image",
@@ -494,6 +510,7 @@ const messages = {
     menu: {
       my_reservations: "My future reservations",
       create_reservation: "Book a time",
+      daily: "Daily roster",
       admin: {
         title: "Admin",
         shops: "Shops",
@@ -912,6 +929,22 @@ const messages = {
         filter_no_shop_found: "Aucun magasin trouvée",
         no_reservations: "Aucune réservation trouvée",
       },
+      daily: {
+        title: "Présences du jour",
+        select_shop: "Sélectionnez un magasin",
+        pick_shop_prompt: "Sélectionnez un magasin pour voir les personnes prévues.",
+        no_slots: "Aucun créneau ce jour-là.",
+        nobody: "Personne de prévu pour l'instant.",
+        total_people: "{count} prévue(s)",
+        validated: "Validée",
+        call: "Appeler",
+        email: "Envoyer un e-mail",
+        add: "Ajouter quelqu'un",
+        added: "Personne ajoutée au créneau.",
+        remove: "Retirer",
+        removed: "Personne retirée du créneau.",
+        remove_confirm: "Retirer {name} de ce créneau ?",
+      },
       mail_templates: {
         insert_button: "Insérer un bouton",
         insert_image: "Insérer une image",
@@ -1044,6 +1077,7 @@ const messages = {
     menu: {
       my_reservations: "Mes futures réservations",
       create_reservation: "Réserver un créneau",
+      daily: "Présences du jour",
       admin: {
         title: "Admin",
         shops: "Magasins",

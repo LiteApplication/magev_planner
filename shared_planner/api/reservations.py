@@ -89,6 +89,13 @@ class SlotBooking(BaseModel):
     validated: bool = False
 
 
+class DaySlot(BaseModel):
+    """A slot active on a given date, with everyone booked into it (admin view)."""
+
+    slot: TimeSlotOut
+    bookings: list[SlotBooking]
+
+
 class BookSlotRequest(BaseModel):
     time_slot_id: int
     date: datetime.date
@@ -218,6 +225,64 @@ def get_slot_bookings(shop_id: int, date: str, slot_id: int) -> list[SlotBooking
             )
             for r in sorted(reservations, key=lambda r: r.user.full_name.lower())
         ]
+    return result
+
+
+@router.get("/{shop_id}/{date}/day", dependencies=[Depends(CurrentAdmin)])
+def get_day_bookings(shop_id: int, date: str) -> list[DaySlot]:
+    """List all slots active on a date with their bookings (admin only)."""
+    with SessionLock() as session:
+        shop = session.get(Shop, shop_id)
+        if shop is None:
+            raise HTTPException(status_code=404, detail="error.shop.not_found")
+
+        day_date = datetime.datetime.strptime(date, "%Y-%m-%d").date()
+        weekday = day_date.weekday()
+
+        day_slots = [
+            s
+            for s in shop.time_slots
+            if s.day == weekday and s.valid_from <= day_date <= s.valid_until
+        ]
+        day_slots.sort(key=lambda s: s.start_time)
+
+        # Fetch all reservations for this shop on this day in one query (UTC bounds).
+        day_start = tz.local_to_utc(datetime.datetime.combine(day_date, datetime.time()))
+        day_end = day_start + datetime.timedelta(days=1)
+        day_reservations = session.exec(
+            select(Reservation).where(
+                Reservation.shop_id == shop_id,
+                Reservation.start_time < day_end,
+                Reservation.end_time > day_start,
+            )
+        ).all()
+
+        result = []
+        for slot in day_slots:
+            slot_start = tz.local_to_utc(
+                datetime.datetime.combine(day_date, slot.start_time)
+            )
+            slot_end = tz.local_to_utc(
+                datetime.datetime.combine(day_date, slot.end_time)
+            )
+            slot_reservations = [
+                r
+                for r in day_reservations
+                if r.start_time < slot_end and r.end_time > slot_start
+            ]
+            bookings = [
+                SlotBooking(
+                    reservation_id=r.id,
+                    user_id=r.user_id,
+                    full_name=r.user.full_name,
+                    email=r.user.email,
+                    phone=r.user.phone,
+                    group=r.user.group,
+                    validated=r.validated,
+                )
+                for r in sorted(slot_reservations, key=lambda r: r.user.full_name.lower())
+            ]
+            result.append(DaySlot(slot=TimeSlotOut.from_slot(slot), bookings=bookings))
     return result
 
 

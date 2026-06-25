@@ -131,6 +131,11 @@ type SlotBooking = {
     validated: boolean
 }
 
+type DaySlot = {
+    slot: TimeSlot,
+    bookings: SlotBooking[]
+}
+
 type BookSlotRequest = {
     time_slot_id: number,
     date: string          // "YYYY-MM-DD"
@@ -217,5 +222,5 @@ const exampleNotification: Notification = {
 
 
 
-export type { TokenResponse, User, Shop, OpenRange, ShopWithOpenRange, ReservedTimeRange, TimeSlot, SaveMode, SlotOp, SlotStatus, SlotBooking, BookSlotRequest, BookMultipleSlotsRequest, BookRangeRequest, Setting, Enterprise, EnterprisePublic, Document, MailTemplate, Notification }
+export type { TokenResponse, User, Shop, OpenRange, ShopWithOpenRange, ReservedTimeRange, TimeSlot, SaveMode, SlotOp, SlotStatus, SlotBooking, DaySlot, BookSlotRequest, BookMultipleSlotsRequest, BookRangeRequest, Setting, Enterprise, EnterprisePublic, Document, MailTemplate, Notification }
 export { exampleShop, exampleReservedTimeRange, exampleOpenRange, exampleShopWithOpenRange, exampleUser, exampleNotification }
