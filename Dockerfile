@@ -1,5 +1,5 @@
 # --- Frontend Base ---
-FROM node:22-alpine AS frontend-base
+FROM docker.io/library/node:22-alpine AS frontend-base
 WORKDIR /app/web
 COPY web/package*.json ./
 RUN npm ci
@@ -15,7 +15,7 @@ COPY web/ .
 RUN npm run build
 
 # --- Backend Base ---
-FROM python:3.12-slim AS backend-base
+FROM docker.io/library/python:3.12-slim AS backend-base
 
 RUN apt-get update && apt-get install -y --no-install-recommends locales && \
     localedef -i fr_FR -c -f UTF-8 -A /usr/share/locale/locale.alias fr_FR.UTF-8 && \
@@ -40,7 +40,7 @@ RUN uv sync --frozen --no-dev
 CMD ["sh", "-c", "uv run init_settings && uv run uvicorn shared_planner.api:app --host 0.0.0.0 --port 8000 --reload --reload-dir shared_planner --reload-dir templates --reload-exclude 'database.db'"]
 
 # --- Frontend Production (nginx) ---
-FROM nginx:alpine AS frontend-prod
+FROM docker.io/library/nginx:alpine AS frontend-prod
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=frontend-builder /app/web/dist /usr/share/nginx/html
 EXPOSE 80
