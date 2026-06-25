@@ -7,6 +7,7 @@ import { useRouter } from 'vue-router';
 import Password from 'primevue/password';
 import Button from 'primevue/button';
 import Card from 'primevue/card';
+import Checkbox from 'primevue/checkbox';
 
 
 import { usersApi } from '@/main';
@@ -17,6 +18,7 @@ const { t: $t } = useI18n();
 
 const password = ref('');
 const confirm_password = ref('');
+const accepted_reminder = ref(false);
 const error_msg = ref('');
 const router = useRouter();
 const api_error = ref('');
@@ -71,6 +73,11 @@ const onSubmit = async () => {
         return;
     }
 
+    if (first_login && !accepted_reminder.value) {
+        error_msg.value = $t('error.auth.reminder_not_accepted');
+        return;
+    }
+
     usersApi.resetPassword(token, password.value).then(
         () => {
             console.log('Password reset');
@@ -116,6 +123,11 @@ const onSubmit = async () => {
                         <label for="password">{{ $t("message.confirm_password") }}</label>
                         <Password v-model="confirm_password" :feedback="false" id="confirm-password" :invalid="invalidPassword()" fluid toggle-mask
                             @keyup.enter="onSubmit" pt:pcinput:root:autoComplete="new-password" />
+                    </div>
+
+                    <div class="flex items-start gap-2 mt-1" v-if="first_login">
+                        <Checkbox v-model="accepted_reminder" :binary="true" inputId="accept-reminder" />
+                        <label for="accept-reminder" class="text-xs text-justify">{{ $t('message.reminder_confirmation') }}</label>
                     </div>
 
                 </div>

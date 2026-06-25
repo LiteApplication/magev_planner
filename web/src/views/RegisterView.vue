@@ -21,6 +21,7 @@ const full_name = ref('');
 const phone = ref('');
 const error_msg = ref('');
 const accepted_terms = ref(false);
+const accepted_privacy = ref(false);
 
 const enterprises = ref<EnterprisePublic[]>([]);
 const selected = ref<EnterprisePublic | null>(null);
@@ -84,6 +85,10 @@ const onSubmit = async () => {
         error_msg.value = $t('error.auth.terms_not_accepted');
         return;
     }
+    if (!accepted_privacy.value) {
+        error_msg.value = $t('error.auth.privacy_not_accepted');
+        return;
+    }
     loading.value = true;
     authApi.register(email.value, full_name.value, phone.value, selected.value.slug, accepted_terms.value).then(
         () => {
@@ -142,6 +147,11 @@ const onSubmit = async () => {
                     <div class="flex items-start gap-2 mt-1" v-if="selected?.checkbox_text">
                         <Checkbox v-model="accepted_terms" :binary="true" inputId="accept-terms" />
                         <label for="accept-terms" class="text-sm">{{ selected.checkbox_text }}</label>
+                    </div>
+
+                    <div class="flex items-start gap-2 mt-1">
+                        <Checkbox v-model="accepted_privacy" :binary="true" inputId="accept-privacy" />
+                        <label for="accept-privacy" class="text-xs text-justify">{{ $t('message.privacy_consent') }}</label>
                     </div>
                 </div>
             </template>
