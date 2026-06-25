@@ -1,9 +1,19 @@
 import { api } from ".";
-import type { BookSlotRequest, BookMultipleSlotsRequest, ReservedTimeRange, SlotStatus } from "./types";
+import type { BookSlotRequest, BookMultipleSlotsRequest, ReservedTimeRange, SlotStatus, SlotBooking } from "./types";
 
 export default class ReservationApi {
     async getPlanning(shopId: number, monday: string): Promise<SlotStatus[][]> {
         const result = await api.get(`/res/${shopId}/${monday}/list`);
+        return result.data;
+    }
+
+    async getSlotBookings(shopId: number, date: string, slotId: number): Promise<SlotBooking[]> {
+        const result = await api.get(`/res/${shopId}/${date}/${slotId}/bookings`);
+        return result.data;
+    }
+
+    async assign(shopId: number, req: { time_slot_id: number, date: string, user_id: number }): Promise<ReservedTimeRange> {
+        const result = await api.post(`/res/${shopId}/assign`, req);
         return result.data;
     }
 

@@ -78,6 +78,11 @@ const router = createRouter({
           component: () => import('../views/admin/AdminMailTemplatesView.vue')
         },
         {
+          path: 'export',
+          name: 'admin-export',
+          component: () => import('../views/admin/AdminExportView.vue')
+        },
+        {
           path: 'settings',
           name: 'admin-settings',
           component: () => import('../views/admin/AdminSettingsView.vue')

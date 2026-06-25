@@ -2,6 +2,7 @@ import datetime
 import json
 from sqlmodel import SQLModel, create_engine, Session as _Session
 from sqlalchemy import Engine
+from shared_planner import tz
 from shared_planner.db.models import (
     User,
     Shop,
@@ -35,6 +36,12 @@ def _run_migrations(engine: Engine) -> None:
         if "time_slot_id" not in cols:
             with engine.connect() as conn:
                 conn.execute(text("ALTER TABLE reservation ADD COLUMN time_slot_id INTEGER REFERENCES timeslot(id)"))
+                conn.commit()
+    if "user" in tables:
+        cols = [c["name"] for c in inspector.get_columns("user")]
+        if "phone" not in cols:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE user ADD COLUMN phone VARCHAR NOT NULL DEFAULT ''"))
                 conn.commit()
 
 
@@ -86,13 +93,44 @@ def load_dummies():
         opening_time["end_time"] = datetime.datetime.strptime(
             opening_time["end_time"], "%H:%M"
         ).time()
+    # Recurring time slots. Each JSON entry lists the weekdays it applies to and
+    # is expanded into one TimeSlot per day.
+    time_slots = []
+    for entry in data.get("time_slots", []):
+        for day in entry["days"]:
+            time_slots.append(
+                TimeSlot(
+                    shop_id=entry["shop_id"],
+                    day=day,
+                    start_time=datetime.datetime.strptime(
+                        entry["start_time"], "%H:%M"
+                    ).time(),
+                    end_time=datetime.datetime.strptime(
+                        entry["end_time"], "%H:%M"
+                    ).time(),
+                    max_volunteers=entry["max_volunteers"],
+                    valid_from=datetime.datetime.strptime(
+                        entry["valid_from"], "%Y-%m-%d"
+                    ).date(),
+                    valid_until=datetime.datetime.strptime(
+                        entry["valid_until"], "%Y-%m-%d"
+                    ).date(),
+                )
+            )
+    # Reservations are defined relative to the current date: a `day_offset`
+    # (in days from today) plus wall-clock `start_time`/`end_time` ("HH:MM").
+    # The wall-clock times are interpreted as server-local and stored as UTC.
+    today = tz.now().date()
     reservations = data["reservations"]
     for reservation in reservations:
-        reservation["start_time"] = datetime.datetime.strptime(
-            reservation["start_time"], "%Y-%m-%d %H:%M:%S"
+        day = today + datetime.timedelta(days=reservation.pop("day_offset"))
+        start_time = datetime.datetime.strptime(reservation["start_time"], "%H:%M").time()
+        end_time = datetime.datetime.strptime(reservation["end_time"], "%H:%M").time()
+        reservation["start_time"] = tz.local_to_utc(
+            datetime.datetime.combine(day, start_time)
         )
-        reservation["end_time"] = datetime.datetime.strptime(
-            reservation["end_time"], "%Y-%m-%d %H:%M:%S"
+        reservation["end_time"] = tz.local_to_utc(
+            datetime.datetime.combine(day, end_time)
         )
 
     tokens = data["tokens"]
@@ -118,6 +156,8 @@ def load_dummies():
             session.add(Shop(**shop))
         for opening_time in opening_times:
             session.add(OpeningTime(**opening_time))
+        for time_slot in time_slots:
+            session.add(time_slot)
         for reservation in reservations:
             session.add(Reservation(**reservation))
         for token in tokens:

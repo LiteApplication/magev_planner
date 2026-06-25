@@ -32,6 +32,7 @@ class User(SQLModel, table=True):
     id: int = Field(primary_key=True, default=None)  # ID of the user
     full_name: str  # Displayed name
     email: str = Field(index=True, unique=True)  # Email of the user
+    phone: str = ""  # Phone number of the user
     hashed_password: bytes = b""  # Password hashed
     admin: bool = False  # Is the user an admin
     group: str  # Group of the user

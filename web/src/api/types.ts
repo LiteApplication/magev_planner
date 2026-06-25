@@ -11,6 +11,7 @@ type User = {
     id: number,
     email: string,
     full_name: string,
+    phone: string,
     admin: boolean,
     group: string
     confirmed: boolean
@@ -21,6 +22,7 @@ const exampleUser: User = {
     id: -1,
     email: "Loading ...",
     full_name: "Loading ...",
+    phone: "",
     admin: false,
     group: "Loading ...",
     confirmed: false
@@ -119,6 +121,16 @@ type SlotStatus = {
     validated: boolean
 }
 
+type SlotBooking = {
+    reservation_id: number,
+    user_id: number,
+    full_name: string,
+    email: string,
+    phone: string,
+    group: string,
+    validated: boolean
+}
+
 type BookSlotRequest = {
     time_slot_id: number,
     date: string          // "YYYY-MM-DD"
@@ -205,5 +217,5 @@ const exampleNotification: Notification = {
 
 
 
-export type { TokenResponse, User, Shop, OpenRange, ShopWithOpenRange, ReservedTimeRange, TimeSlot, SaveMode, SlotOp, SlotStatus, BookSlotRequest, BookMultipleSlotsRequest, BookRangeRequest, Setting, Enterprise, EnterprisePublic, Document, MailTemplate, Notification }
+export type { TokenResponse, User, Shop, OpenRange, ShopWithOpenRange, ReservedTimeRange, TimeSlot, SaveMode, SlotOp, SlotStatus, SlotBooking, BookSlotRequest, BookMultipleSlotsRequest, BookRangeRequest, Setting, Enterprise, EnterprisePublic, Document, MailTemplate, Notification }
 export { exampleShop, exampleReservedTimeRange, exampleOpenRange, exampleShopWithOpenRange, exampleUser, exampleNotification }

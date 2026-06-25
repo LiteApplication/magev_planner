@@ -28,6 +28,7 @@ class UserResult(BaseModel):
     id: int
     email: str
     full_name: str
+    phone: str = ""
     admin: bool
     group: str = ""
     confirmed: bool = True  # If the user has a password set
@@ -37,6 +38,7 @@ class UserResult(BaseModel):
         return cls(
             email=user.email,
             full_name=user.full_name,
+            phone=user.phone,
             admin=user.admin,
             id=user.id,
             group=user.group,
@@ -127,6 +129,7 @@ def login(
 def register(
     email: Annotated[str, Form()],
     full_name: Annotated[str, Form()],
+    phone: str = Form(default=""),
     enterprise: str = Form(...),
     accepted_terms: bool = Form(default=False),
 ) -> None:
@@ -146,6 +149,7 @@ def register(
         # Sanitize inputs to avoid XSS
         full_name = re.sub(r"[^\w\s]", "", full_name).strip()
         email = email.strip().lower()
+        phone = re.sub(r"[^\d+()\s.-]", "", phone).strip()
 
         enterprise_obj = session.exec(
             select(Enterprise).where(Enterprise.slug == enterprise)
@@ -159,7 +163,9 @@ def register(
 
         group = enterprise_obj.name
 
-        new_user = User(full_name=full_name, email=email, group=group, admin=False)
+        new_user = User(
+            full_name=full_name, email=email, phone=phone, group=group, admin=False
+        )
         session.add(new_user)
 
         session.commit()  # Commit to avoid race conditions

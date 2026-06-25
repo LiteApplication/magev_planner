@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, defineComponent, onMounted, ref, watch } from 'vue';
-import { reservationApi, shopApi, authApi } from '@/main';
-import type { SlotStatus, Shop } from '@/api/types';
+import { reservationApi, shopApi, authApi, usersApi } from '@/main';
+import type { SlotStatus, Shop, SlotBooking, User } from '@/api/types';
+import Select from 'primevue/select';
 import DayTimeline from './DayTimeline.vue';
 import { useI18n } from 'vue-i18n';
 import { timeToMinutes } from '../utils';
@@ -34,6 +35,27 @@ const isLoading = defineModel('loading', { type: Boolean, default: false });
 // Multi-slot selection: key = `${slot_id}:${date}`
 const selectedSlots = ref<Set<string>>(new Set());
 const confirmDialogVisible = ref(false);
+
+// Admin slot manager: list/contact/remove the people booked into a slot.
+const slotManagerVisible = ref(false);
+const slotManagerLoading = ref(false);
+const slotBookings = ref<SlotBooking[]>([]);
+const slotManagerInfo = ref<{ slotId: number; date: string; label: string } | null>(null);
+
+// Admin assign dialog: put a user into one of the day's slots.
+const assignVisible = ref(false);
+const assignLoading = ref(false);
+const assignDayIndex = ref<number | null>(null);
+const assignSlot = ref<SlotStatus | null>(null);
+const assignUser = ref<User | null>(null);
+const allUsers = ref<User[]>([]);
+
+const assignDaySlots = computed<SlotStatus[]>(() =>
+    assignDayIndex.value === null ? [] : planning.value[assignDayIndex.value]
+);
+function assignSlotLabel(ss: SlotStatus): string {
+    return `${ss.slot.start_time.slice(0, 5)}–${ss.slot.end_time.slice(0, 5)} · ${t('message.reservation.spots_taken', { booked: ss.booked_count, max: ss.slot.max_volunteers })}`;
+}
 
 const titles = computed<string[]>(
     () => Array.from({ length: 7 }, (_, i) =>
@@ -183,7 +205,115 @@ function canAddSlot(task: Task): boolean {
     return task.start_time === bounds.maxEnd || task.end_time === bounds.minStart;
 }
 
-function onTaskClick(_day: number, task: Task) {
+async function openSlotManager(task: Task) {
+    if (!task.slot_id || !task.slot_date) return;
+    // Build a human-readable header from the slot details in the planning.
+    let label = `${dayName(task.slot_date)} ${task.slot_date}`;
+    for (const day of planning.value) {
+        const ss = day.find(s => s.slot.id === task.slot_id && s.date === task.slot_date);
+        if (ss) {
+            label += ` · ${ss.slot.start_time.slice(0, 5)}–${ss.slot.end_time.slice(0, 5)}`;
+            break;
+        }
+    }
+    slotManagerInfo.value = { slotId: task.slot_id, date: task.slot_date, label };
+    slotBookings.value = [];
+    slotManagerVisible.value = true;
+    await loadSlotBookings();
+}
+
+async function loadSlotBookings() {
+    if (!slotManagerInfo.value) return;
+    slotManagerLoading.value = true;
+    try {
+        slotBookings.value = await reservationApi.getSlotBookings(
+            props.shopId, slotManagerInfo.value.date, slotManagerInfo.value.slotId);
+    } catch (e) {
+        handleError(toast, t, 'error.reservation.unknown')(e);
+    } finally {
+        slotManagerLoading.value = false;
+    }
+}
+
+function removeBooking(b: SlotBooking) {
+    confirm.require({
+        message: t('message.reservation.confirm_remove_user', { name: b.full_name }),
+        header: t('message.reservation.manage_slot'),
+        icon: 'pi pi-exclamation-triangle',
+        rejectLabel: t('message.cancel'),
+        acceptLabel: t('message.reservation.remove'),
+        acceptClass: 'p-button-danger',
+        accept: () => {
+            reservationApi.cancel(b.reservation_id).then(async () => {
+                await Promise.all([loadSlotBookings(), fetchPlanning()]);
+                toast.add({ severity: 'success', summary: t('message.success'), detail: t('message.reservation.user_removed'), life: 2000 });
+                if (slotBookings.value.length === 0) slotManagerVisible.value = false;
+            }).catch(handleError(toast, t, 'error.reservation.unknown'));
+        },
+    });
+}
+
+// Admins get both behaviours on a slot: single click books (selection flow),
+// double click opens the manager. We delay the single-click action briefly so a
+// double-click can cancel it. Non-admins act immediately on single click.
+let clickTimer: ReturnType<typeof setTimeout> | null = null;
+
+async function openAssignDialog(dayIndex: number) {
+    if (!isAdmin.value) return;
+    assignDayIndex.value = dayIndex;
+    assignSlot.value = planning.value[dayIndex]?.[0] ?? null;
+    assignUser.value = null;
+    assignVisible.value = true;
+    if (allUsers.value.length === 0) {
+        try {
+            allUsers.value = await usersApi.list();
+        } catch (e) {
+            handleError(toast, t)(e);
+        }
+    }
+}
+
+async function assignSelected() {
+    if (!assignSlot.value || !assignUser.value) {
+        toast.add({ severity: 'warn', summary: t('error.title'), detail: t('error.fields'), life: 2500 });
+        return;
+    }
+    assignLoading.value = true;
+    try {
+        await reservationApi.assign(props.shopId, {
+            time_slot_id: assignSlot.value.slot.id,
+            date: assignSlot.value.date,
+            user_id: assignUser.value.id,
+        });
+        assignVisible.value = false;
+        await fetchPlanning();
+        toast.add({ severity: 'success', summary: t('message.success'), detail: t('message.reservation.user_assigned'), life: 2000 });
+    } catch (e) {
+        handleError(toast, t, 'error.reservation.unknown')(e);
+    } finally {
+        assignLoading.value = false;
+    }
+}
+
+function onTaskClick(day: number, task: Task) {
+    if (!isAdmin.value) {
+        handleSingleClick(day, task);
+        return;
+    }
+    if (clickTimer) clearTimeout(clickTimer);
+    clickTimer = setTimeout(() => {
+        clickTimer = null;
+        handleSingleClick(day, task);
+    }, 220);
+}
+
+function onTaskDblClick(_day: number, task: Task) {
+    if (!isAdmin.value) return;
+    if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+    openSlotManager(task);
+}
+
+function handleSingleClick(_day: number, task: Task) {
     if (!task.slot_id || !task.slot_date) return;
 
     // Own booking → confirm cancel with slot details
@@ -290,8 +420,10 @@ function dayName(date: string): string {
             <div class="weekview-container">
                 <DayTimeline v-for="[index, tasks] in displayedTasks.entries()" :key="index"
                     :title="titles[index]" :tasks="tasks"
-                    :startOfDay="dayBounds.start_time" :endOfDay="dayBounds.end_time"
-                    @click-task="(task: Task) => onTaskClick(index, task)" />
+                    :startOfDay="dayBounds.start_time" :endOfDay="dayBounds.end_time" :is-admin="isAdmin"
+                    @click-task="(task: Task) => onTaskClick(index, task)"
+                    @dblclick-task="(task: Task) => onTaskDblClick(index, task)"
+                    @add-task="() => openAssignDialog(index)" />
             </div>
         </div>
 
@@ -325,6 +457,65 @@ function dayName(date: string): string {
         <div class="flex justify-end gap-2">
             <Button :label="t('message.cancel')" severity="secondary" outlined @click="confirmDialogVisible = false" />
             <Button :label="t('message.save')" icon="pi pi-check" @click="bookSelected" />
+        </div>
+    </Dialog>
+
+    <!-- Admin slot manager: who booked this slot, with contact / remove actions -->
+    <Dialog v-model:visible="slotManagerVisible" :header="t('message.reservation.manage_slot')" modal
+        style="min-width: 22rem; max-width: 95vw">
+        <p v-if="slotManagerInfo" class="text-sm mb-3 opacity-70">{{ slotManagerInfo.label }}</p>
+        <div v-if="slotManagerLoading" class="flex justify-center p-4">
+            <span class="pi pi-spin pi-spinner text-xl"></span>
+        </div>
+        <div v-else-if="slotBookings.length === 0" class="text-sm opacity-70 p-2">
+            {{ t('message.reservation.no_bookings') }}
+        </div>
+        <ul v-else class="flex flex-col gap-2">
+            <li v-for="b in slotBookings" :key="b.reservation_id"
+                class="flex items-center gap-2 p-2 rounded" style="background: var(--p-content-hover-background)">
+                <div class="flex flex-col grow min-w-0">
+                    <span class="text-sm font-semibold truncate">
+                        {{ b.full_name }}
+                        <span v-if="b.validated" class="pi pi-check-circle text-green-500 text-xs"
+                            v-tooltip="t('admin.confirmed_account')"></span>
+                    </span>
+                    <span v-if="b.group" class="text-xs opacity-70 truncate">{{ b.group }}</span>
+                </div>
+                <a :href="`mailto:${b.email}`" v-tooltip="t('message.email')">
+                    <Button icon="pi pi-envelope" severity="secondary" text rounded size="small" />
+                </a>
+                <a v-if="b.phone" :href="`tel:${b.phone}`" v-tooltip="t('message.phone')">
+                    <Button icon="pi pi-phone" severity="secondary" text rounded size="small" />
+                </a>
+                <Button icon="pi pi-user-minus" severity="danger" text rounded size="small"
+                    @click="removeBooking(b)" v-tooltip="t('message.reservation.remove')" />
+            </li>
+        </ul>
+    </Dialog>
+
+    <!-- Admin: assign a user to one of the day's slots -->
+    <Dialog v-model:visible="assignVisible" :header="t('message.reservation.assign_title')" modal
+        style="min-width: 22rem; max-width: 95vw">
+        <p class="text-sm mb-3 opacity-70" v-if="assignDayIndex !== null">{{ titles[assignDayIndex] }}</p>
+        <div v-if="assignDaySlots.length === 0" class="text-sm opacity-70 p-2">
+            {{ t('message.reservation.no_slots_day') }}
+        </div>
+        <div v-else class="flex flex-col gap-4">
+            <div class="flex flex-col gap-2">
+                <label>{{ t('message.reservation.slot') }}</label>
+                <Select v-model="assignSlot" :options="assignDaySlots" :optionLabel="assignSlotLabel"
+                    class="w-full" :placeholder="t('message.reservation.slot')" />
+            </div>
+            <div class="flex flex-col gap-2">
+                <label>{{ t('message.reservation.person') }}</label>
+                <Select v-model="assignUser" :options="allUsers" optionLabel="full_name" filter
+                    class="w-full" :placeholder="t('message.reservation.person')" />
+            </div>
+            <div class="flex justify-end gap-2">
+                <Button :label="t('message.cancel')" severity="secondary" outlined @click="assignVisible = false" />
+                <Button :label="t('message.reservation.assign')" icon="pi pi-user-plus" @click="assignSelected"
+                    :loading="assignLoading" :disabled="assignLoading" />
+            </div>
         </div>
     </Dialog>
 </template>

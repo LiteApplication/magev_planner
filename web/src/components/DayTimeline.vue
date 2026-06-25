@@ -1,7 +1,7 @@
 <template>
     <div class="timeline rounded-lg border">
         <div class="timeline-header rounded-lg bg-slate-100 dark:bg-slate-800">
-            <p>{{ title }}</p><Button @click="$emit('addTask')" severity="info">+</Button>
+            <p>{{ title }}</p><Button v-if="isAdmin" @click="$emit('addTask')" severity="info">+</Button>
         </div>
         <div class=" timeline-body divide-y divide-slate-500" :style="cssVars">
             <div v-for="(time, index) in timeIntervals" :key="index" class="time-line"
@@ -15,7 +15,7 @@
                 :style="taskStyle(task)" v-tooltip="{
                     value: `<h3 style='font-weight: bold'>${task.title}</h3><p>${task.description}</p>`,
                     escape: false, hideDelay: 0
-                }" @click="$emit('clickTask', task)">
+                }" @click="$emit('clickTask', task)" @dblclick="$emit('dblclickTask', task)">
             </div>
         </div>
     </div>
@@ -30,6 +30,7 @@ import Button from 'primevue/button';
 defineEmits<{
     addTask: [];
     clickTask: [task: Task];
+    dblclickTask: [task: Task];
     timeClicked: [time: { time: string; showLabel: boolean; label: string }];
 }>();
 </script>
@@ -53,6 +54,10 @@ export default defineComponent({
         endOfDay: {
             type: Number,
             required: true
+        },
+        isAdmin: {
+            type: Boolean,
+            default: false
         },
         tasks: {
             type: Object as PropType<Task[]>,
@@ -135,12 +140,15 @@ export default defineComponent({
                 task.end_time - this.startOfDay + 30;
             const topPercent = (taskStart / totalMinutes) * 100;
             const heightPercent = ((taskEnd - taskStart) / totalMinutes) * 100;
+            // Trim a few pixels off the height so consecutive slots always show a
+            // small visual gap, even when one's end time touches the next's start.
+            const height = `calc(${heightPercent}% - 4px)`;
 
             const marginLeft = task._row;
             if (task.id === null) {
                 return {
                     top: `${topPercent}%`,
-                    height: `${heightPercent}%`,
+                    height,
                     backgroundColor: task.color,
                     marginLeft: `${marginLeft}rem`,
                     cursor: task.cursor,
@@ -150,7 +158,7 @@ export default defineComponent({
 
             return {
                 top: `${topPercent}%`,
-                height: `${heightPercent}%`,
+                height,
                 backgroundColor: task.color,
                 marginLeft: `${marginLeft}rem`,
                 cursor: task.cursor

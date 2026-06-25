@@ -30,6 +30,7 @@ const { t } = useI18n();
 const navItems = computed(() => [
     { to: '/admin/shops', label: t('menu.admin.shops'), icon: 'pi pi-shop' },
     { to: '/admin/reservations', label: t('menu.admin.reservations'), icon: 'pi pi-calendar' },
+    { to: '/admin/export', label: t('menu.admin.export'), icon: 'pi pi-file-export' },
     { to: '/admin/users', label: t('menu.admin.users'), icon: 'pi pi-users' },
     { to: '/admin/enterprises', label: t('menu.admin.enterprises'), icon: 'pi pi-building' },
     { to: '/admin/documents', label: t('menu.admin.documents'), icon: 'pi pi-file' },

@@ -18,6 +18,7 @@ const route = useRoute();
 
 const email = ref('');
 const full_name = ref('');
+const phone = ref('');
 const error_msg = ref('');
 const accepted_terms = ref(false);
 
@@ -71,7 +72,7 @@ const emailMismatch = computed(() =>
 );
 
 const onSubmit = async () => {
-    if (email.value === '' || full_name.value === '' || !selected.value) {
+    if (email.value === '' || full_name.value === '' || phone.value === '' || !selected.value) {
         error_msg.value = $t('error.fields');
         return;
     }
@@ -84,7 +85,7 @@ const onSubmit = async () => {
         return;
     }
     loading.value = true;
-    authApi.register(email.value, full_name.value, selected.value.slug, accepted_terms.value).then(
+    authApi.register(email.value, full_name.value, phone.value, selected.value.slug, accepted_terms.value).then(
         () => {
             error_msg.value = '';
             loading.value = false;
@@ -120,6 +121,10 @@ const onSubmit = async () => {
                     <div class="flex flex-col gap-2">
                         <label for="full_name">{{ $t("message.full_name") }}</label>
                         <InputText id="full_name" v-model="full_name" autocomplete="name" />
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <label for="phone">{{ $t("message.phone") }}</label>
+                        <InputText id="phone" v-model="phone" type="tel" autocomplete="tel" />
                     </div>
 
                     <div class="flex flex-col gap-2" v-if="isLocked">

@@ -15,6 +15,7 @@ from shared_planner.api.enterprises import (
 )
 from shared_planner.api.documents import router as documents_router
 from shared_planner.api.mail_templates import router as mail_templates_router
+from shared_planner.api.export import router as export_router
 
 
 @asynccontextmanager
@@ -53,3 +54,4 @@ app.include_router(notifications_router)
 app.include_router(enterprises_router)
 app.include_router(documents_router)
 app.include_router(mail_templates_router)
+app.include_router(export_router)

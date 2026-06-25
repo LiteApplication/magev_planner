@@ -23,6 +23,7 @@ import NotificationsApi from './api/notifications';
 import EnterpriseApi from './api/enterprise';
 import DocumentApi from './api/document';
 import MailTemplateApi from './api/mailTemplate';
+import ExportApi from './api/export';
 
 
 
@@ -69,5 +70,6 @@ const notificationsApi = new NotificationsApi();
 const enterpriseApi = new EnterpriseApi();
 const documentApi = new DocumentApi();
 const mailTemplateApi = new MailTemplateApi();
+const exportApi = new ExportApi();
 
-export { authApi, shopApi, reservationApi, slotsApi, usersApi, settingsApi, notificationsApi, enterpriseApi, documentApi, mailTemplateApi };
+export { authApi, shopApi, reservationApi, slotsApi, usersApi, settingsApi, notificationsApi, enterpriseApi, documentApi, mailTemplateApi, exportApi };

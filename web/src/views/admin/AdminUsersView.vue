@@ -1,6 +1,6 @@
 <template>
     <DataTable :value="users" dataKey="id" tableStyle="min-width: 60rem" size="large" stripedRows sort-field="group" :sort-order="1" removableSort
-        :globalFilterFields="['full_name', 'email', 'group']" filterDisplay="row" v-model:filters="filters" editMode="row" @row-edit-save="saveRow"
+        :globalFilterFields="['full_name', 'email', 'phone', 'group']" filterDisplay="row" v-model:filters="filters" editMode="row" @row-edit-save="saveRow"
         v-model:editingRows="editingRows" @row-edit-init="onRowEditInit" @row-edit-cancel="editingRows = []" v-model:selection="selectedUsers">
         <template #header>
             <Toolbar>
@@ -35,6 +35,11 @@
         <Column field="email" :header="$t('message.email')" sortable>
             <template #editor>
                 <InputText v-model="editField_email" mode="email" fluid />
+            </template>
+        </Column>
+        <Column field="phone" :header="$t('message.phone')" sortable>
+            <template #editor>
+                <InputText v-model="editField_phone" type="tel" fluid />
             </template>
         </Column>
         <Column field="group" :header="$t('message.group')" sortable>
@@ -101,6 +106,7 @@ const editingRows = ref<User[]>([]);
 
 const editField_full_name = ref('');
 const editField_email = ref('');
+const editField_phone = ref('');
 const editField_group = ref('');
 const editField_admin = ref(false);
 const resetPasswordLoading = ref(false);
@@ -109,6 +115,7 @@ const onRowEditInit = (e: any) => {
     editingRows.value = [e.data];
     editField_full_name.value = e.data.full_name;
     editField_email.value = e.data.email;
+    editField_phone.value = e.data.phone;
     editField_group.value = e.data.group;
     editField_admin.value = e.data.admin;
 };
@@ -128,6 +135,7 @@ const saveRow = (e: any) => {
         id: e.data.id,
         full_name: editField_full_name.value,
         email: editField_email.value,
+        phone: editField_phone.value,
         group: editField_group.value,
         admin: editField_admin.value,
         confirmed: e.data.confirmed,
@@ -142,6 +150,7 @@ const saveRow = (e: any) => {
                     id: e.data.id,
                     full_name: editField_full_name.value,
                     email: editField_email.value,
+                    phone: editField_phone.value,
                     group: editField_group.value,
                     admin: editField_admin.value,
                     confirmed: e.data.confirmed,
@@ -158,7 +167,7 @@ const selectedUsers = ref<User[]>([]);
 onMounted(loadList);
 
 function addUser() {
-    usersApi.create('', 'New User', '', '', false).then(loadList).catch(handleError(toast, $t));
+    usersApi.create('', 'New User', '', '', '', false).then(loadList).catch(handleError(toast, $t));
 }
 
 // Function to confirm and delete selected users

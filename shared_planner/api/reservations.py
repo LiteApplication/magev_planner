@@ -77,9 +77,27 @@ class SlotStatus(BaseModel):
     validated: bool = False
 
 
+class SlotBooking(BaseModel):
+    """A single person booked into a slot, with contact details (admin view)."""
+
+    reservation_id: int
+    user_id: int
+    full_name: str
+    email: str
+    phone: str = ""
+    group: str = ""
+    validated: bool = False
+
+
 class BookSlotRequest(BaseModel):
     time_slot_id: int
     date: datetime.date
+
+
+class AssignSlotRequest(BaseModel):
+    time_slot_id: int
+    date: datetime.date
+    user_id: int
 
 
 class BookMultipleSlotsRequest(BaseModel):
@@ -159,6 +177,116 @@ def get_planning(
             result.append(day_statuses)
         session.close()
 
+    return result
+
+
+@router.get(
+    "/{shop_id}/{date}/{slot_id}/bookings", dependencies=[Depends(CurrentAdmin)]
+)
+def get_slot_bookings(shop_id: int, date: str, slot_id: int) -> list[SlotBooking]:
+    """List everyone booked into a given slot on a given date (admin only)."""
+    with SessionLock() as session:
+        slot = session.get(TimeSlot, slot_id)
+        if slot is None or slot.shop_id != shop_id:
+            raise HTTPException(status_code=404, detail="error.slot.not_found")
+
+        day_date = datetime.datetime.strptime(date, "%Y-%m-%d").date()
+        slot_start = tz.local_to_utc(
+            datetime.datetime.combine(day_date, slot.start_time)
+        )
+        slot_end = tz.local_to_utc(
+            datetime.datetime.combine(day_date, slot.end_time)
+        )
+
+        reservations = session.exec(
+            select(Reservation).where(
+                Reservation.shop_id == shop_id,
+                Reservation.start_time < slot_end,
+                Reservation.end_time > slot_start,
+            )
+        ).all()
+
+        result = [
+            SlotBooking(
+                reservation_id=r.id,
+                user_id=r.user_id,
+                full_name=r.user.full_name,
+                email=r.user.email,
+                phone=r.user.phone,
+                group=r.user.group,
+                validated=r.validated,
+            )
+            for r in sorted(reservations, key=lambda r: r.user.full_name.lower())
+        ]
+    return result
+
+
+@router.post("/{shop_id}/assign", dependencies=[Depends(CurrentAdmin)])
+def assign_slot(shop_id: int, req: AssignSlotRequest) -> ReservedTimeRange:
+    """Assign a user to a time slot (admin only)."""
+    with SessionLock() as session:
+        shop = session.get(Shop, shop_id)
+        if shop is None:
+            raise HTTPException(status_code=404, detail="error.shop.not_found")
+
+        slot = session.get(TimeSlot, req.time_slot_id)
+        if slot is None or slot.shop_id != shop_id:
+            raise HTTPException(status_code=404, detail="error.slot.not_found")
+        if not (slot.valid_from <= req.date <= slot.valid_until):
+            raise HTTPException(status_code=400, detail="error.slot.not_active")
+        if req.date.weekday() != slot.day:
+            raise HTTPException(status_code=400, detail="error.slot.wrong_day")
+
+        user = session.get(User, req.user_id)
+        if user is None:
+            raise HTTPException(status_code=404, detail="error.user.not_found")
+
+        slot_start = tz.local_to_utc(
+            datetime.datetime.combine(req.date, slot.start_time)
+        )
+        slot_end = tz.local_to_utc(
+            datetime.datetime.combine(req.date, slot.end_time)
+        )
+
+        existing = session.exec(
+            select(Reservation).where(
+                Reservation.shop_id == shop_id,
+                Reservation.start_time < slot_end,
+                Reservation.end_time > slot_start,
+            )
+        ).all()
+        if any(r.user_id == user.id for r in existing):
+            raise HTTPException(
+                status_code=400, detail="error.reservation.already_booked"
+            )
+
+        new_reservation = Reservation(
+            user_id=user.id,
+            shop=shop,
+            start_time=slot_start,
+            end_time=slot_end,
+            time_slot_id=None,
+        )
+        session.add(new_reservation)
+
+        session.add(
+            Notification.create(
+                user,
+                "notification.reservation_created",
+                {
+                    "shop": shop.name,
+                    "datetime-start_time": slot_start.strftime("%Y-%m-%d %H:%M"),
+                    "duration": int((slot_end - slot_start).total_seconds() // 60),
+                    "ics": new_reservation.ics_data(),
+                },
+                route=f"/shops/{shop.id}/{monday_str(tz.utc_to_local(slot_start))}",
+                mail=get("email_reservation_created").asBool(),
+            )
+        )
+
+        session.commit()
+        session.refresh(new_reservation)
+        result = ReservedTimeRange.from_reservation(new_reservation, None)
     return result
 
 

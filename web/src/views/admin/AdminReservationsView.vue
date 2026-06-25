@@ -3,17 +3,16 @@ import type { ReservedTimeRange, Shop, User } from '@/api/types';
 import ReservationItem from '@/components/list/ReservationItem.vue';
 import DatePicker from '@/components/primevue/DatePicker';
 import { reservationApi, shopApi, usersApi } from '@/main';
-import { getMonday } from '@/utils';
+import { getMonday, parseServerDate } from '@/utils';
 import Button from 'primevue/button';
 import Select from 'primevue/select';
 import Toolbar from 'primevue/toolbar';
-import { defineComponent, onMounted } from 'vue';
+import { computed, defineComponent, onMounted } from 'vue';
 import handleError from '@/error_handler';
 
 import { ref } from "vue";
 import { useI18n } from 'vue-i18n';
 import { useToast } from 'primevue/usetoast';
-import Skeleton from 'primevue/skeleton';
 
 const $t = useI18n().t;
 const toast = useToast();
@@ -53,6 +52,42 @@ function search() {
     }).catch(handleError(toast, $t, "error.reservation.unknown"));
 }
 
+// Sort reservations by start time, then group them by date and by place (shop).
+const groupedReservations = computed(() => {
+    const sorted = [...reservations.value].sort(
+        (a, b) => parseServerDate(a.start_time).getTime() - parseServerDate(b.start_time).getTime()
+    );
+
+    type Place = { shopId: number, shopName: string, reservations: ReservedTimeRange[] };
+    type DateGroup = { dateKey: string, dateLabel: string, places: Place[] };
+    const dateGroups: DateGroup[] = [];
+
+    for (const reservation of sorted) {
+        const date = parseServerDate(reservation.start_time);
+        const dateKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+        const dateLabel = date.toLocaleDateString($t("date_locale"), {
+            weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+        });
+
+        let dateGroup = dateGroups.find((group) => group.dateKey === dateKey);
+        if (!dateGroup) {
+            dateGroup = { dateKey, dateLabel, places: [] };
+            dateGroups.push(dateGroup);
+        }
+
+        const shopId = reservation.shop?.id ?? -1;
+        const shopName = reservation.shop?.name ?? '';
+        let place = dateGroup.places.find((p) => p.shopId === shopId);
+        if (!place) {
+            place = { shopId, shopName, reservations: [] };
+            dateGroup.places.push(place);
+        }
+        place.reservations.push(reservation);
+    }
+
+    return dateGroups;
+});
+
 </script>
 <template>
     <Toolbar class="m-4">
@@ -82,15 +117,26 @@ function search() {
             <h1 class="m-4 text-center text-xl">{{ $t("admin.reservations.no_reservations") }}</h1>
         </div>
     </template>
-    <ReservationItem v-for="reservation in reservations" :key="reservation.id" :reservation="reservation" @update:reservation="search()" show-users>
-        <template #shopName="{ shop }">
-            <h2 class="text-xl font-semibold align-middle" v-if="reservation.id != -1 && shop">{{ shop.name }}</h2>
-            <Skeleton width="15rem" height="1.5rem" v-else></Skeleton>
-            <span> - </span>
-            <h3 v-if="reservation.title"> {{ reservation.status > 0 ? reservation.title : $t(reservation.title) }}</h3>
-
-        </template>
-    </ReservationItem>
+    <template v-else>
+        <section v-for="group in groupedReservations" :key="group.dateKey" class="m-4">
+            <h1 class="text-2xl font-bold capitalize border-b border-slate-300 dark:border-slate-600 pb-1 mb-2">
+                {{ group.dateLabel }}
+            </h1>
+            <div v-for="place in group.places" :key="place.shopId" class="mb-4">
+                <h2 class="flex items-center gap-2 text-lg font-semibold ml-2">
+                    <i class="pi pi-map-marker" />{{ place.shopName }}
+                </h2>
+                <ReservationItem v-for="reservation in place.reservations" :key="reservation.id" :reservation="reservation"
+                    @update:reservation="search()" show-users>
+                    <template #shopName>
+                        <h3 v-if="reservation.title" class="text-lg font-semibold align-middle">
+                            {{ reservation.status > 0 ? reservation.title : $t(reservation.title) }}
+                        </h3>
+                    </template>
+                </ReservationItem>
+            </div>
+        </section>
+    </template>
 
 </template>
 
@@ -105,8 +151,7 @@ export default defineComponent({
         DatePicker,
         // eslint-disable-next-line vue/no-reserved-component-names
         Button,
-        ReservationItem,
-        Skeleton
+        ReservationItem
     }
 });
 </script>

@@ -18,6 +18,7 @@ class UserCreate(BaseModel):
 
     email: str
     full_name: str
+    phone: str = ""
     password: str
     group: str
     admin: bool = False
@@ -156,6 +157,7 @@ def update_user(
         user.admin = user_data.admin
         user.full_name = user_data.full_name
         user.email = user_data.email
+        user.phone = user_data.phone
         user.group = user_data.group
 
         session.add(user)
