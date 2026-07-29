@@ -10,6 +10,8 @@ type TokenResponse = {
 type User = {
     id: number,
     email: string,
+    first_name: string,
+    last_name: string,
     full_name: string,
     phone: string,
     admin: boolean,
@@ -21,6 +23,8 @@ type User = {
 const exampleUser: User = {
     id: -1,
     email: "Loading ...",
+    first_name: "Loading ...",
+    last_name: "",
     full_name: "Loading ...",
     phone: "",
     admin: false,

@@ -13,10 +13,11 @@ export default class AuthApi {
 
   }
 
-  async register(email: string, full_name: string, phone: string, enterprise: string, accepted_terms: boolean): Promise<void> {
+  async register(email: string, first_name: string, last_name: string, phone: string, enterprise: string, accepted_terms: boolean): Promise<void> {
     const bodyFormData = new FormData();
     bodyFormData.append('email', email);
-    bodyFormData.append('full_name', full_name);
+    bodyFormData.append('first_name', first_name);
+    bodyFormData.append('last_name', last_name);
     bodyFormData.append('phone', phone);
     bodyFormData.append('enterprise', enterprise);
     bodyFormData.append('accepted_terms', accepted_terms ? 'true' : 'false');

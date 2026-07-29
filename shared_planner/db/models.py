@@ -30,7 +30,8 @@ class User(SQLModel, table=True):
     """Represents a user in the database"""
 
     id: int = Field(primary_key=True, default=None)  # ID of the user
-    full_name: str  # Displayed name
+    first_name: str = ""  # First (given) name
+    last_name: str = ""  # Last (family) name
     email: str = Field(index=True, unique=True)  # Email of the user
     phone: str = ""  # Phone number of the user
     hashed_password: bytes = b""  # Password hashed
@@ -43,6 +44,11 @@ class User(SQLModel, table=True):
     notifications: list["Notification"] = Relationship(
         back_populates="user", cascade_delete=True
     )
+
+    @property
+    def full_name(self) -> str:
+        """Display name built from the first and last name."""
+        return f"{self.first_name} {self.last_name}".strip()
 
     def set_password(self, password: str):
         salt = bcrypt.gensalt()

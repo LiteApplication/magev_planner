@@ -306,7 +306,7 @@ def build_planning_ods(range_mode: str) -> bytes:
 
     with SessionLock() as session:
         shops = list(session.exec(select(Shop).order_by(Shop.name)))
-        users = list(session.exec(select(User).order_by(User.full_name)))
+        users = list(session.exec(select(User).order_by(User.last_name, User.first_name)))
         all_reservations = list(session.exec(select(Reservation)))
 
         # Determine the export range from the last reservation (local time).

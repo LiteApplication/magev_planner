@@ -27,7 +27,9 @@ class UserResult(BaseModel):
 
     id: int
     email: str
-    full_name: str
+    first_name: str = ""
+    last_name: str = ""
+    full_name: str = ""  # Derived display name (first + last)
     phone: str = ""
     admin: bool
     group: str = ""
@@ -37,6 +39,8 @@ class UserResult(BaseModel):
     def from_user(cls, user: User) -> "UserResult":
         return cls(
             email=user.email,
+            first_name=user.first_name,
+            last_name=user.last_name,
             full_name=user.full_name,
             phone=user.phone,
             admin=user.admin,
@@ -128,7 +132,8 @@ def login(
 @router.post("/register")
 def register(
     email: Annotated[str, Form()],
-    full_name: Annotated[str, Form()],
+    first_name: Annotated[str, Form()],
+    last_name: str = Form(default=""),
     phone: str = Form(default=""),
     enterprise: str = Form(...),
     accepted_terms: bool = Form(default=False),
@@ -138,18 +143,19 @@ def register(
         if session.exec(statement).first() is not None:
             raise HTTPException(status_code=409, detail="error.auth.email_exists")
 
-        if len(full_name) < 3:
+        # Sanitize inputs to avoid XSS
+        first_name = re.sub(r"[^\w\s]", "", first_name).strip()
+        last_name = re.sub(r"[^\w\s]", "", last_name).strip()
+        email = email.strip().lower()
+        phone = re.sub(r"[^\d+()\s.-]", "", phone).strip()
+
+        if len(f"{first_name}{last_name}") < 3:
             raise HTTPException(
                 status_code=400, detail="error.auth.full_name_too_short"
             )
 
         if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
             raise HTTPException(status_code=400, detail="error.auth.email_invalid")
-
-        # Sanitize inputs to avoid XSS
-        full_name = re.sub(r"[^\w\s]", "", full_name).strip()
-        email = email.strip().lower()
-        phone = re.sub(r"[^\d+()\s.-]", "", phone).strip()
 
         enterprise_obj = session.exec(
             select(Enterprise).where(Enterprise.slug == enterprise)
@@ -164,7 +170,12 @@ def register(
         group = enterprise_obj.name
 
         new_user = User(
-            full_name=full_name, email=email, phone=phone, group=group, admin=False
+            first_name=first_name,
+            last_name=last_name,
+            email=email,
+            phone=phone,
+            group=group,
+            admin=False,
         )
         session.add(new_user)
 

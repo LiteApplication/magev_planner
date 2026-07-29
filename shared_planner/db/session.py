@@ -44,6 +44,22 @@ def _run_migrations(engine: Engine) -> None:
             with engine.connect() as conn:
                 conn.execute(text("ALTER TABLE user ADD COLUMN phone VARCHAR NOT NULL DEFAULT ''"))
                 conn.commit()
+        if "first_name" not in cols:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE user ADD COLUMN first_name VARCHAR NOT NULL DEFAULT ''"))
+                conn.execute(text("ALTER TABLE user ADD COLUMN last_name VARCHAR NOT NULL DEFAULT ''"))
+                if "full_name" in cols:
+                    # Split the legacy full name at the first space: everything
+                    # before it becomes the first name, the rest the last name.
+                    rows = conn.execute(text("SELECT id, full_name FROM user")).fetchall()
+                    for row_id, full_name in rows:
+                        first, _, last = (full_name or "").partition(" ")
+                        conn.execute(
+                            text("UPDATE user SET first_name = :f, last_name = :l WHERE id = :i"),
+                            {"f": first, "l": last, "i": row_id},
+                        )
+                    conn.execute(text("ALTER TABLE user DROP COLUMN full_name"))
+                conn.commit()
 
 
 # Directory holding the SQLite database file. Defaults to the current working

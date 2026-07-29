@@ -2,8 +2,8 @@ import { api } from ".";
 import type { User } from "./types";
 
 export default class UsersApi {
-    async create(email: string, full_name: string, phone: string, password: string, group: string, admin: boolean): Promise<User> {
-        const result = await api.post('/users/create', { email, full_name, phone, password, group, admin });
+    async create(email: string, first_name: string, last_name: string, phone: string, password: string, group: string, admin: boolean): Promise<User> {
+        const result = await api.post('/users/create', { email, first_name, last_name, phone, password, group, admin });
         return result.data;
     }
 

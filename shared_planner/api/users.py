@@ -17,7 +17,8 @@ class UserCreate(BaseModel):
     """Data model for user creation"""
 
     email: str
-    full_name: str
+    first_name: str = ""
+    last_name: str = ""
     phone: str = ""
     password: str
     group: str
@@ -39,7 +40,8 @@ def create_user(
 
         # sanitize user input
         user_data.email = user_data.email.strip()
-        user_data.full_name = user_data.full_name.strip()
+        user_data.first_name = user_data.first_name.strip()
+        user_data.last_name = user_data.last_name.strip()
         user_data.group = user_data.group.strip()
 
         new_user = User(**user_data.model_dump())
@@ -147,15 +149,14 @@ def update_user(
         user = session.exec(statement).first()
         if user is None:
             raise HTTPException(status_code=404, detail="error.user.not_found")
-        user.email = user_data.email
-        user.full_name = user_data.full_name
         if user_data.id == exec_user.id:
             if user_data.admin != exec_user.admin:
                 raise HTTPException(
                     status_code=400, detail="error.user.cant_set_self_admin"
                 )
         user.admin = user_data.admin
-        user.full_name = user_data.full_name
+        user.first_name = user_data.first_name
+        user.last_name = user_data.last_name
         user.email = user_data.email
         user.phone = user_data.phone
         user.group = user_data.group
@@ -187,7 +188,8 @@ def update_me(
         if user.email != user_data.email:
             raise HTTPException(status_code=400, detail="error.user.email_not_same")
 
-        user.full_name = user_data.full_name
+        user.first_name = user_data.first_name
+        user.last_name = user_data.last_name
         user.set_password(user_data.password)
         session.add(user)
         session.commit()
