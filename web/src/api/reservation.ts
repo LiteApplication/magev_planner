@@ -54,7 +54,7 @@ export default class ReservationApi {
         return result.data;
     }
 
-    async search(search: { shop_id: number | undefined, monday: string | undefined, user_id: number | undefined }): Promise<ReservedTimeRange[]> {
+    async search(search: { shop_id?: number, day?: string, monday?: string, user_id?: number }): Promise<ReservedTimeRange[]> {
         const result = await api.post(`/res/search`, search);
         return result.data;
     }

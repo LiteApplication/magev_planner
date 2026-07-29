@@ -637,15 +637,27 @@ def get_user_future_reservations(
 def search(
     shop_id: int | None = Body(None),
     user_id: int | None = Body(None),
+    day: str | None = Body(None),
     monday: str | None = Body(None),
 ) -> list[ReservedTimeRange]:
-    """Search reservations by shop, user, and/or week."""
+    """Search reservations by shop, volunteer, and/or a specific day.
+
+    ``day`` restricts the results to a single date; ``monday`` (kept for
+    backward compatibility) restricts them to the week starting that Monday.
+    """
     with SessionLock() as session:
         query = select(Reservation)
         if shop_id is not None:
             query = query.where(Reservation.shop_id == shop_id)
         if user_id is not None:
             query = query.where(Reservation.user_id == user_id)
+        if day is not None:
+            day_start = datetime.datetime.strptime(day, "%Y-%m-%d")
+            day_end = day_start + datetime.timedelta(days=1)
+            query = query.where(
+                Reservation.start_time >= tz.local_to_utc(day_start),
+                Reservation.start_time < tz.local_to_utc(day_end),
+            )
         if monday is not None:
             week_start = datetime.datetime.strptime(monday, "%Y-%m-%d")
             week_end = week_start + datetime.timedelta(days=7)

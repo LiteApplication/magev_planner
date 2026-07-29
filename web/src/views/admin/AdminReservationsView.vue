@@ -3,7 +3,7 @@ import type { ReservedTimeRange, Shop, User } from '@/api/types';
 import ReservationItem from '@/components/list/ReservationItem.vue';
 import DatePicker from '@/components/primevue/DatePicker';
 import { reservationApi, shopApi, usersApi } from '@/main';
-import { getMonday, parseServerDate } from '@/utils';
+import { parseServerDate } from '@/utils';
 import Button from 'primevue/button';
 import Select from 'primevue/select';
 import Toolbar from 'primevue/toolbar';
@@ -42,12 +42,26 @@ onMounted(() => {
     }).catch(handleError(toast, $t, "error.user.unknown"));
 });
 
-function search() {
-    const shop_id = selectedShop.value ? selectedShop.value : undefined;
-    const user_id = selectedUser.value ? selectedUser.value : undefined;
-    const week = datePicked.value ? getMonday(datePicked.value) : undefined;
+// Format a picked date as a local YYYY-MM-DD string (no timezone shift).
+function toDayStr(d: Date): string {
+    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 10);
+}
 
-    reservationApi.search({ shop_id, user_id, monday: week }).then((response) => {
+// A Select bound with optionValue yields the id, but stay defensive in case a
+// whole option object comes through so the filter is never silently dropped.
+function toId(value: unknown): number | undefined {
+    if (value === null || value === undefined || value === '') return undefined;
+    if (typeof value === 'object') return (value as { id?: number }).id;
+    return Number(value);
+}
+
+function search() {
+    const shop_id = toId(selectedShop.value);
+    const user_id = toId(selectedUser.value);
+    const day = datePicked.value ? toDayStr(datePicked.value) : undefined;
+
+    reservationApi.search({ shop_id, user_id, day }).then((response) => {
         reservations.value = response;
     }).catch(handleError(toast, $t, "error.reservation.unknown"));
 }
@@ -102,12 +116,12 @@ const groupedReservations = computed(() => {
                     :placeholder="$t('admin.reservations.select_user')" class="w-full md:w-56" :loading="!loadedUsers"
                     :empty-filter-message="$t('admin.reservations.filter_no_user_found')" :filter-fields="['full_name', 'group', 'email']"
                     show-clear />
-                <DatePicker v-model="datePicked" showIcon fluid :date-format="$t('message.shops.week_format')" :showOnFocus="true"
-                    inputId="buttondisplay" :placeholder="$t('message.select_date')" show-week showButtonBar class="w-full md:w-56" />
+                <DatePicker v-model="datePicked" showIcon fluid date-format="dd/mm/yy" :showOnFocus="true"
+                    inputId="buttondisplay" :placeholder="$t('message.select_date')" showButtonBar class="w-full md:w-56" />
             </div>
         </template>
         <template #end>
-            <Button label="Search" icon="pi pi-search" class="p-button-raised p-button-rounded p-button-success " @click="search" />
+            <Button :label="$t('message.search')" icon="pi pi-search" class="p-button-raised p-button-rounded p-button-success " @click="search" />
         </template>
     </Toolbar>
 
