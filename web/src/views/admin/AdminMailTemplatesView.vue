@@ -25,6 +25,11 @@
                 </div>
             </div>
 
+            <div class="flex flex-col gap-1 mb-3">
+                <label for="mt-subject" class="text-sm text-slate-500">{{ $t('admin.mail_templates.subject') }}</label>
+                <InputText id="mt-subject" v-model="subject" class="w-full" />
+            </div>
+
             <div class="flex items-center gap-2 mb-2 flex-wrap">
                 <Select v-model="docToInsert" :options="documents" optionLabel="filename" :placeholder="$t('admin.mail_templates.pick_document')"
                     class="w-72" filter :showClear="true" />
@@ -46,6 +51,7 @@ import { ref, computed, onMounted, defineComponent } from 'vue';
 import type { MailTemplate, Document } from '@/api/types';
 import Button from 'primevue/button';
 import Textarea from 'primevue/textarea';
+import InputText from 'primevue/inputtext';
 import Select from 'primevue/select';
 import Tag from 'primevue/tag';
 import { mailTemplateApi, documentApi } from '@/main';
@@ -62,13 +68,14 @@ const templates = ref<MailTemplate[]>([]);
 const documents = ref<Document[]>([]);
 const selectedName = ref<string | null>(null);
 const content = ref('');
+const subject = ref('');
 const saving = ref(false);
 const testing = ref(false);
 const docToInsert = ref<Document | null>(null);
 const editorRef = ref<{ $el: HTMLTextAreaElement } | null>(null);
 
 const current = computed(() => templates.value.find(t => t.name === selectedName.value) ?? null);
-const dirty = computed(() => !!current.value && content.value !== current.value.content);
+const dirty = computed(() => !!current.value && (content.value !== current.value.content || subject.value !== current.value.subject));
 
 function subjectOrName(tpl: MailTemplate): string {
     return tpl.subject || tpl.name;
@@ -89,6 +96,7 @@ onMounted(() => {
 function select(name: string) {
     selectedName.value = name;
     content.value = current.value?.content ?? '';
+    subject.value = current.value?.subject ?? '';
 }
 
 function insertDoc(kind: 'button' | 'image') {
@@ -110,9 +118,10 @@ function insertDoc(kind: 'button' | 'image') {
 function save() {
     if (!current.value) return;
     saving.value = true;
-    mailTemplateApi.update(current.value.name, content.value).then((updated) => {
+    mailTemplateApi.update(current.value.name, content.value, subject.value).then((updated) => {
         saving.value = false;
         templates.value = templates.value.map(t => t.name === updated.name ? updated : t);
+        subject.value = updated.subject;
         toast.add({ severity: 'success', summary: $t('message.success'), detail: $t('admin.mail_templates.saved'), life: 2000 });
     }).catch((e) => {
         saving.value = false;
@@ -132,6 +141,7 @@ function confirmReset() {
             mailTemplateApi.reset(current.value!.name).then((updated) => {
                 templates.value = templates.value.map(t => t.name === updated.name ? updated : t);
                 content.value = updated.content;
+                subject.value = updated.subject;
                 toast.add({ severity: 'success', summary: $t('message.success'), detail: $t('admin.mail_templates.reset_done'), life: 2000 });
             }).catch(handleError(toast, $t));
         },

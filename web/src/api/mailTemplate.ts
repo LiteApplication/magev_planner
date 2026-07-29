@@ -12,8 +12,8 @@ export default class MailTemplateApi {
         return result.data;
     }
 
-    async update(name: string, content: string): Promise<MailTemplate> {
-        const result = await api.put(`/mail_templates/${name}`, { content });
+    async update(name: string, content: string, subject: string): Promise<MailTemplate> {
+        const result = await api.put(`/mail_templates/${name}`, { content, subject });
         return result.data;
     }
 

@@ -66,6 +66,15 @@ def get_template_markdown(name: str) -> str:
     return default_markdown(name)
 
 
+def get_template_subject(name: str, default: str = "") -> str:
+    """Return the admin-overridden subject if set, else the given default."""
+    with SessionLock() as session:
+        override = session.get(MailTemplate, name)
+        if override is not None and override.subject:
+            return override.subject
+    return default
+
+
 def _render_buttons(text: str) -> str:
     return _BUTTON_RE.sub(
         lambda m: _BUTTON_HTML.format(url=m.group(1).strip(), text=m.group(2).strip()),

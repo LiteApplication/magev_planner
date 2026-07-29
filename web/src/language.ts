@@ -409,6 +409,8 @@ const messages = {
         syntax_help: "Write your email using Markdown syntax. You can insert variables between curly braces, for example {user} will be replaced by the user's name. Use the buttons above to insert an image or a button.",
         test: "Test",
         test_sent: "Test email queued for sending.",
+        subject: "Subject",
+        test_draft_sent: "Draft test email sent.",
       }
     },
     day: {
@@ -975,6 +977,8 @@ const messages = {
         syntax_help: "Rédigez votre mail en utilisant la syntaxe Markdown. Vous pouvez insérer des variables entre accolades, par exemple {user} sera remplacé par le nom de l'utilisateur. Utilisez les boutons ci-dessus pour insérer une image ou un bouton.",
         test: "Tester",
         test_sent: "Email de test mis en file d'attente d'envoi.",
+        subject: "Objet",
+        test_draft_sent: "Email de test du brouillon envoyé.",
       }
     },
     day: {

@@ -189,6 +189,7 @@ type Document = {
 type MailTemplate = {
     name: string,
     subject: string,
+    default_subject: string,
     content: string,
     default_content: string,
     customized: boolean

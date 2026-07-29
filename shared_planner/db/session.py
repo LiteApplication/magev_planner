@@ -32,6 +32,12 @@ def _run_migrations(engine: Engine) -> None:
     from sqlalchemy import inspect, text
     inspector = inspect(engine)
     tables = inspector.get_table_names()
+    if "mailtemplate" in tables:
+        cols = [c["name"] for c in inspector.get_columns("mailtemplate")]
+        if "subject" not in cols:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE mailtemplate ADD COLUMN subject VARCHAR NOT NULL DEFAULT ''"))
+                conn.commit()
     if "reservation" in tables:
         cols = [c["name"] for c in inspector.get_columns("reservation")]
         if "time_slot_id" not in cols:

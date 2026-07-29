@@ -201,6 +201,7 @@ class MailTemplate(SQLModel, table=True):
 
     name: str = Field(primary_key=True)  # e.g. "first_mail", "notification.reminder"
     content: str  # Markdown source
+    subject: str = ""  # Override subject line (empty = use the codebase default)
 
 
 class Document(SQLModel, table=True):

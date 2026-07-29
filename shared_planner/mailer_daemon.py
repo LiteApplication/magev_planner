@@ -26,6 +26,7 @@ from shared_planner.ics import create_ics
 from shared_planner import tz
 from shared_planner.mail_render import (
     get_template_markdown,
+    get_template_subject,
     markdown_to_html,
     wrap_in_shell,
 )
@@ -78,11 +79,20 @@ def d(value, format_type="date"):
 
 
 def send_mail(name: str, email: str, template: str, data: dict):
-    subject = SUBJECTS.get(template, "Notification")
-
-    # Load the markdown source (admin override or codebase default).
+    # Subject and body both fall back to the codebase default when not overridden.
+    subject = get_template_subject(template, SUBJECTS.get(template, "Notification"))
     template_content = get_template_markdown(template)
+    send_rendered_mail(name, email, subject, template_content, data)
 
+
+def send_rendered_mail(
+    name: str, email: str, subject: str, template_content: str, data: dict
+):
+    """Substitute ``data`` into the given markdown, wrap it and send the email.
+
+    Used both by the mailer daemon (with the stored template) and by the admin
+    preview/test endpoints (with an unsaved draft).
+    """
     for key, value in data.items():
         if key.startswith("date-"):
             value = d(value)
