@@ -56,7 +56,7 @@ async function fetchData() {
         (user) => {
             console.log("Logged in as", user);
             if (props.requireAdmin && !user.admin) {
-                toast.add({ severity: 'error', summary: $t('error.title'), detail: $t('admin.unauthorized') });
+                toast.add({ severity: 'error', summary: $t('error.title'), detail: $t('admin.unauthorized'), life: 30000 });
                 $router.push({ name: "reservations" });
                 return;
             }

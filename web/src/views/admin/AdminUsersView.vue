@@ -180,7 +180,7 @@ const confirmDeleteSelectedUsers = () => {
             deleteSelectedUsers().then(
                 () => {
                     selectedUsers.value = [];
-                    toast.add({ severity: 'success', summary: $t("message.success"), detail: $t("admin.user_deleted") });
+                    toast.add({ severity: 'success', summary: $t("message.success"), detail: $t("admin.user_deleted"), life: 3000 });
                     loadList();
                 }
             ).catch(handleError(toast, $t));
@@ -206,7 +206,7 @@ function resetPassword(user: User) {
             usersApi.requestPasswordReset(user.email).then(
                 () => {
                     resetPasswordLoading.value = false;
-                    toast.add({ severity: 'success', summary: $t("message.success"), detail: $t("admin.password_reset_email_sent") });
+                    toast.add({ severity: 'success', summary: $t("message.success"), detail: $t("admin.password_reset_email_sent"), life: 3000 });
                     editingRows.value = [];
                 }
             ).catch(handleError(toast, $t));

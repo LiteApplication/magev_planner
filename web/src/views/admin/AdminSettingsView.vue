@@ -90,7 +90,7 @@ function loadList() {
 const saveRow = (e: any) => {
     settingsApi.update(e.data.key, e.data.value).then(
         (new_setting) => {
-            toast.add({ severity: 'success', summary: $t("admin.settings.saved_title"), detail: $t("admin.settings.saved_description", { key: new_setting.key }) });
+            toast.add({ severity: 'success', summary: $t("admin.settings.saved_title"), detail: $t("admin.settings.saved_description", { key: new_setting.key }), life: 3000 });
         }
     ).catch(handleError(toast, $t));
 };
@@ -98,7 +98,7 @@ const saveRow = (e: any) => {
 function optimizeDatabase() {
     settingsApi.cleanupDb().then(
         (result) => {
-            toast.add({ severity: 'success', summary: $t("admin.settings.optimized_title"), detail: $t("admin.settings.optimized_description", result) });
+            toast.add({ severity: 'success', summary: $t("admin.settings.optimized_title"), detail: $t("admin.settings.optimized_description", result), life: 3000 });
         }
     ).catch(handleError(toast, $t));
 }

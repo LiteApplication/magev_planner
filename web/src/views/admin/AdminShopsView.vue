@@ -185,12 +185,12 @@ async function saveShop() {
             const created = await shopApi.create(selectedShop.value);
             await loadShops();
             await selectShop(created);
-            toast.add({ severity: 'success', summary: t('message.success'), detail: t('admin.shop.created') });
+            toast.add({ severity: 'success', summary: t('message.success'), detail: t('admin.shop.created'), life: 3000 });
         } else {
             invalidateCache();
             await shopApi.update(selectedShop.value);
             await selectShop(selectedShop.value);
-            toast.add({ severity: 'success', summary: t('message.success'), detail: t('admin.shop.updated') });
+            toast.add({ severity: 'success', summary: t('message.success'), detail: t('admin.shop.updated'), life: 3000 });
         }
     } catch (e) {
         handleError(toast, t)(e);
@@ -205,7 +205,7 @@ async function onDeleteShop() {
         selectedShop.value = null;
         slots.value = [];
         invalidateCache();
-        toast.add({ severity: 'success', summary: t('message.success'), detail: t('admin.shop.deleted') });
+        toast.add({ severity: 'success', summary: t('message.success'), detail: t('admin.shop.deleted'), life: 3000 });
     } catch (e) {
         handleError(toast, t)(e);
     }
@@ -224,7 +224,7 @@ async function onSlotCreate(slot: Partial<TimeSlot>) {
         });
         invalidateCache();
         await loadSlots(selectedShop.value.id);
-        toast.add({ severity: 'success', summary: t('message.success'), detail: t('admin.shop.slot_created') });
+        toast.add({ severity: 'success', summary: t('message.success'), detail: t('admin.shop.slot_created'), life: 3000 });
     } catch (e) {
         handleError(toast, t)(e);
     }
@@ -243,7 +243,7 @@ async function onSlotUpdate(slot: Partial<TimeSlot>) {
         });
         invalidateCache();
         await loadSlots(selectedShop.value!.id);
-        toast.add({ severity: 'success', summary: t('message.success'), detail: t('admin.shop.slot_updated') });
+        toast.add({ severity: 'success', summary: t('message.success'), detail: t('admin.shop.slot_updated'), life: 3000 });
     } catch (e) {
         handleError(toast, t)(e);
     }
@@ -277,7 +277,7 @@ async function onSlotBatch(ops: SlotOp[]) {
         }
         invalidateCache();
         await loadSlots(selectedShop.value.id);
-        toast.add({ severity: 'success', summary: t('message.success'), detail: t('admin.shop.slot_updated') });
+        toast.add({ severity: 'success', summary: t('message.success'), detail: t('admin.shop.slot_updated'), life: 3000 });
     } catch (e) {
         handleError(toast, t)(e);
     }
@@ -289,7 +289,7 @@ async function onSlotDelete(slotId: number) {
         await slotsApi.delete(slotId);
         invalidateCache();
         await loadSlots(selectedShop.value!.id);
-        toast.add({ severity: 'success', summary: t('message.success'), detail: t('admin.shop.slot_deleted') });
+        toast.add({ severity: 'success', summary: t('message.success'), detail: t('admin.shop.slot_deleted'), life: 3000 });
     } catch (e) {
         handleError(toast, t)(e);
     }
