@@ -32,10 +32,10 @@
                         <div v-for="h in visibleHours" :key="'h' + h" class="grid-line half"
                             :style="{ top: minuteToPercent((h - DAY_START_H) * 60 + 30) + '%' }"></div>
 
-                        <!-- Existing slots for this day -->
-                        <div v-for="slot in slotsForDay(day - 1)" :key="slot.id"
+                        <!-- Existing slots for this day (overlapping ones sit side by side) -->
+                        <div v-for="{ slot, col, cols } in layoutForDay(day - 1)" :key="slot.id"
                             class="slot-block" :class="slotClass(slot)"
-                            :style="slotStyle(slot)"
+                            :style="slotStyle(slot, col, cols)"
                             @dblclick.stop="openEditSlot(slot)"
                             @mousedown.stop>
                             <span class="slot-label">
@@ -188,10 +188,57 @@ function slotEndMin(slot: TimeSlot): number {
     return h * 60 + m - DAY_START_H * 60;
 }
 
-function slotStyle(slot: TimeSlot) {
+// Lay out a day's slots into columns so overlapping slots sit next to each other
+// instead of stacking on top of one another. Each returned item carries the
+// column index it was assigned and the number of columns in its overlap cluster.
+function layoutForDay(day: number): { slot: TimeSlot; col: number; cols: number }[] {
+    const slots = slotsForDay(day)
+        .slice()
+        .sort((a, b) => slotStartMin(a) - slotStartMin(b) || slotEndMin(a) - slotEndMin(b));
+
+    const result: { slot: TimeSlot; col: number; cols: number }[] = [];
+    const columnEnds: number[] = []; // last end-minute per active column
+    let clusterEnd = -Infinity;
+    let clusterStart = 0; // index in `result` where the current overlap cluster begins
+
+    const closeCluster = () => {
+        const cols = columnEnds.length || 1;
+        for (let i = clusterStart; i < result.length; i++) result[i].cols = cols;
+    };
+
+    for (const slot of slots) {
+        const start = slotStartMin(slot);
+        const end = slotEndMin(slot);
+        if (start >= clusterEnd) {
+            // No overlap with the previous cluster: finalise it and start a new one.
+            closeCluster();
+            clusterStart = result.length;
+            columnEnds.length = 0;
+        }
+        let col = columnEnds.findIndex((e) => e <= start);
+        if (col === -1) {
+            col = columnEnds.length;
+            columnEnds.push(end);
+        } else {
+            columnEnds[col] = end;
+        }
+        result.push({ slot, col, cols: 1 });
+        clusterEnd = Math.max(clusterEnd, end);
+    }
+    closeCluster();
+    return result;
+}
+
+function slotStyle(slot: TimeSlot, col = 0, cols = 1) {
     const top = minuteToPercent(slotStartMin(slot));
     const height = minuteToPercent(slotEndMin(slot) - slotStartMin(slot));
-    return { top: `${top}%`, height: `${height}%` };
+    const width = 100 / cols;
+    return {
+        top: `${top}%`,
+        height: `${height}%`,
+        left: `calc(${col * width}% + 2px)`,
+        width: `calc(${width}% - 4px)`,
+    };
 }
 
 function slotClass(slot: TimeSlot) {
@@ -392,8 +439,6 @@ function onSlotDelete(slotId: number) {
 
 .slot-block {
     position: absolute;
-    left: 2px;
-    right: 2px;
     border-radius: 4px;
     padding: 2px 4px;
     font-size: 0.65rem;
