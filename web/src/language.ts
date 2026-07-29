@@ -139,7 +139,7 @@ const messages = {
         user: "User",
         delete: "Delete",
         confirm_delete:
-          "Are you sure you want to delete this reservation?\nThe admins will be notified to try and find a replacement.\nIf you do not want to delete it, click 'Cancel'",
+          "Warning: cancellations and changes complicate the organisation. Please only do so when truly necessary.\nThe admins will be notified to try and find a replacement.\nIf you do not want to delete it, click 'Cancel'",
       },
       shops: {
         description: "Gift wrapping operation from\n{from} to\n{until}.",
@@ -481,12 +481,12 @@ const messages = {
         end_before_start: "The end time must be after the start time",
         too_short: "The time range must be at least {min_time} minutes",
         too_long: "The time range must be at most {max_time} minutes",
-        not_open_day: "The shop does not need volunteers on this day",
+        not_open_day: "",
         not_open_time: "The shop does not need volunteers at this time",
 
         unknown:
           "An unknown error happened while trying to book this time range.",
-        confirm_cancel: "Cancel your reservation for this slot?",
+        confirm_cancel: "Warning: cancellations and changes complicate the organisation. Please only do so when truly necessary.",
       },
       slot: {
         not_found: "Time slot not found",
@@ -690,7 +690,7 @@ const messages = {
         user: "Utilisateur",
         delete: "Supprimer",
         confirm_delete:
-          "Êtes-vous sûr de vouloir supprimer cette réservation ?\nLes administrateurs seront informés pour tenter de trouver un remplaçant.\nSi vous ne souhaitez pas supprimer, cliquez sur 'Annuler'",
+          "Attention : les annulations et modifications compliquent l'organisation. Merci de n'y recourir qu'en cas de réelle nécessité.\nLes administrateurs seront informés pour tenter de trouver un remplaçant.\nSi vous ne souhaitez pas supprimer, cliquez sur 'Annuler'",
       },
       shops: {
         description: "Opération paquets cadeaux du\n{from} au\n{until}.",
@@ -1047,12 +1047,12 @@ const messages = {
         end_before_start: "L'heure de fin doit être après l'heure de début",
         too_short: "La plage horaire doit être d'au moins {min_time} minutes",
         too_long: "La plage horaire doit être au maximum de {max_time} minutes",
-        not_open_day: "Pas de besoin en bénévolat ce jour-là",
+        not_open_day: "",
         not_open_time: "Pas de besoin en bénévolat à cette heure",
 
         unknown:
           "Une erreur inconnue est survenue lors de la réservation de cette plage horaire.",
-        confirm_cancel: "Annuler votre réservation pour ce créneau ?",
+        confirm_cancel: "Attention : les annulations et modifications compliquent l'organisation. Merci de n'y recourir qu'en cas de réelle nécessité.",
       },
       slot: {
         not_found: "Créneau introuvable",

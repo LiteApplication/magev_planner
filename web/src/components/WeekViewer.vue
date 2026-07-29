@@ -246,7 +246,7 @@ function removeBooking(b: SlotBooking) {
         accept: () => {
             reservationApi.cancel(b.reservation_id).then(async () => {
                 await Promise.all([loadSlotBookings(), fetchPlanning()]);
-                toast.add({ severity: 'success', summary: t('message.success'), detail: t('message.reservation.user_removed'), life: 2000 });
+                toast.add({ severity: 'success', summary: t('message.success'), detail: t('message.reservation.user_removed'), life: 4000 });
                 if (slotBookings.value.length === 0) slotManagerVisible.value = false;
             }).catch(handleError(toast, t, 'error.reservation.unknown'));
         },
@@ -275,7 +275,7 @@ async function openAssignDialog(dayIndex: number) {
 
 async function assignSelected() {
     if (!assignSlot.value || !assignUser.value) {
-        toast.add({ severity: 'warn', summary: t('error.title'), detail: t('error.fields'), life: 2500 });
+        toast.add({ severity: 'warn', summary: t('error.title'), detail: t('error.fields'), life: 4000 });
         return;
     }
     assignLoading.value = true;
@@ -287,7 +287,7 @@ async function assignSelected() {
         });
         assignVisible.value = false;
         await fetchPlanning();
-        toast.add({ severity: 'success', summary: t('message.success'), detail: t('message.reservation.user_assigned'), life: 2000 });
+        toast.add({ severity: 'success', summary: t('message.success'), detail: t('message.reservation.user_assigned'), life: 4000 });
     } catch (e) {
         handleError(toast, t, 'error.reservation.unknown')(e);
     } finally {
@@ -355,14 +355,14 @@ function handleSingleClick(_day: number, task: Task) {
             const taskStart = task.start_time;
             const taskEnd = task.end_time;
             if (taskStart !== bounds.minStart && taskEnd !== bounds.maxEnd) {
-                toast.add({ severity: 'warn', summary: t('error.title'), detail: t('message.reservation.deselect_edge'), life: 2500 });
+                toast.add({ severity: 'warn', summary: t('error.title'), detail: t('message.reservation.deselect_edge'), life: 4000 });
                 return;
             }
         }
         next.delete(key);
     } else {
         if (!canAddSlot(task)) {
-            toast.add({ severity: 'warn', summary: t('error.title'), detail: t('message.reservation.consecutive_only'), life: 2500 });
+            toast.add({ severity: 'warn', summary: t('error.title'), detail: t('message.reservation.consecutive_only'), life: 4000 });
             return;
         }
         next.add(key);
@@ -383,7 +383,7 @@ async function bookSelected() {
         selectedSlots.value = new Set();
         confirmDialogVisible.value = false;
         await fetchPlanning();
-        toast.add({ severity: 'success', summary: t('message.success'), detail: t('message.shops.booked'), life: 2000 });
+        toast.add({ severity: 'success', summary: t('message.success'), detail: t('message.shops.booked'), life: 4000 });
     } catch (e) {
         handleError(toast, t, 'error.reservation.unknown')(e);
     }
