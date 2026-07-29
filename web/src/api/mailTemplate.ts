@@ -25,4 +25,8 @@ export default class MailTemplateApi {
     async test(name: string): Promise<void> {
         await api.post(`/mail_templates/${name}/test`);
     }
+
+    async testDraft(name: string, content: string, subject: string): Promise<void> {
+        await api.post(`/mail_templates/${name}/test_draft`, { content, subject });
+    }
 }

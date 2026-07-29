@@ -20,7 +20,7 @@
                     <Button :label="$t('admin.mail_templates.reset')" icon="pi pi-undo" severity="secondary" outlined
                         @click="confirmReset" :disabled="!current.customized" />
                     <Button :label="$t('admin.mail_templates.test')" icon="pi pi-send" severity="info" outlined
-                        @click="testMail" :loading="testing" :disabled="dirty" />
+                        @click="testMail" :loading="testing" />
                     <Button :label="$t('message.save')" icon="pi pi-save" @click="save" :loading="saving" :disabled="!dirty" />
                 </div>
             </div>
@@ -151,9 +151,14 @@ function confirmReset() {
 function testMail() {
     if (!current.value) return;
     testing.value = true;
-    mailTemplateApi.test(current.value.name).then(() => {
+    // When there are unsaved edits, test the current draft; otherwise the saved one.
+    const request = dirty.value
+        ? mailTemplateApi.testDraft(current.value.name, content.value, subject.value)
+        : mailTemplateApi.test(current.value.name);
+    const detailKey = dirty.value ? 'admin.mail_templates.test_draft_sent' : 'admin.mail_templates.test_sent';
+    request.then(() => {
         testing.value = false;
-        toast.add({ severity: 'success', summary: $t('message.success'), detail: $t('admin.mail_templates.test_sent'), life: 3000 });
+        toast.add({ severity: 'success', summary: $t('message.success'), detail: $t(detailKey), life: 3000 });
     }).catch((e) => {
         testing.value = false;
         handleError(toast, $t)(e);
