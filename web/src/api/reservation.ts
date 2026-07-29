@@ -27,7 +27,7 @@ export default class ReservationApi {
         return result.data;
     }
 
-    async bookSlots(shopId: number, req: BookMultipleSlotsRequest): Promise<ReservedTimeRange> {
+    async bookSlots(shopId: number, req: BookMultipleSlotsRequest): Promise<ReservedTimeRange[]> {
         const result = await api.post(`/res/${shopId}/book_multiple`, req);
         return result.data;
     }

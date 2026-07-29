@@ -201,8 +201,8 @@ function selectionBounds(): { date: string; minStart: number; maxEnd: number } |
 function canAddSlot(task: Task): boolean {
     const bounds = selectionBounds();
     if (!bounds) return true;
-    if (task.slot_date !== bounds.date) return false;
-    return task.start_time === bounds.maxEnd || task.end_time === bounds.minStart;
+    // Any slot on the same day may be added (consecutive or not).
+    return task.slot_date === bounds.date;
 }
 
 async function openSlotManager(task: Task) {
@@ -349,20 +349,11 @@ function handleSingleClick(_day: number, task: Task) {
     const next = new Set(selectedSlots.value);
 
     if (next.has(key)) {
-        // Deselect only if it's at the edge of the contiguous block
-        const bounds = selectionBounds();
-        if (bounds && next.size > 1) {
-            const taskStart = task.start_time;
-            const taskEnd = task.end_time;
-            if (taskStart !== bounds.minStart && taskEnd !== bounds.maxEnd) {
-                toast.add({ severity: 'warn', summary: t('error.title'), detail: t('message.reservation.deselect_edge'), life: 4000 });
-                return;
-            }
-        }
+        // Any selected slot can be individually deselected.
         next.delete(key);
     } else {
         if (!canAddSlot(task)) {
-            toast.add({ severity: 'warn', summary: t('error.title'), detail: t('message.reservation.consecutive_only'), life: 4000 });
+            toast.add({ severity: 'warn', summary: t('error.title'), detail: t('message.reservation.same_day_only'), life: 4000 });
             return;
         }
         next.add(key);

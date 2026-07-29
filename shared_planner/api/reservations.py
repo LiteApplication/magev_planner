@@ -364,7 +364,7 @@ def book_slot(
     """Book a predefined time slot"""
     return book_slots(
         shop_id, BookMultipleSlotsRequest(time_slot_ids=[req.time_slot_id], date=req.date), user
-    )
+    )[0]
 
 
 @router.post("/{shop_id}/book_multiple")
@@ -372,8 +372,12 @@ def book_slots(
     shop_id: int,
     req: BookMultipleSlotsRequest,
     user: Annotated[User, Depends(CurrentUser)],
-) -> ReservedTimeRange:
-    """Book multiple contiguous time slots as one reservation"""
+) -> list[ReservedTimeRange]:
+    """Book several time slots on the same day.
+
+    Contiguous slots are merged into a single reservation; non-contiguous slots
+    each become their own reservation so the gaps between them stay free.
+    """
     with SessionLock() as session:
         shop = session.get(Shop, shop_id)
         if shop is None:
@@ -430,73 +434,83 @@ def book_slots(
             if len(existing) >= slot.max_volunteers and not user.admin:
                 raise HTTPException(status_code=400, detail="error.reservation.overlap")
 
-        overall_start = tz.local_to_utc(
-            datetime.datetime.combine(req.date, slots[0].start_time)
-        )
-        overall_end = tz.local_to_utc(
-            datetime.datetime.combine(req.date, slots[-1].end_time)
-        )
+        # Group slots into contiguous runs (each run == one reservation). A new run
+        # starts whenever a slot does not begin exactly where the previous one ended.
+        runs: list[list[TimeSlot]] = []
+        for slot in slots:
+            if runs and slot.start_time == runs[-1][-1].end_time:
+                runs[-1].append(slot)
+            else:
+                runs.append([slot])
 
-        new_reservation = Reservation(
-            user_id=user.id,
-            shop=shop,
-            start_time=overall_start,
-            end_time=overall_end,
-            time_slot_id=None,
-        )
-
-        session.add(
-            Notification.create(
-                user,
-                "notification.reservation_created",
-                {
-                    "shop": shop.name,
-                    "datetime-start_time": overall_start.strftime("%Y-%m-%d %H:%M"),
-                    "duration": int(
-                        (overall_end - overall_start).total_seconds() // 60
-                    ),
-                    "ics": new_reservation.ics_data(),
-                },
-                route=f"/shops/{shop.id}/{monday_str(tz.utc_to_local(overall_start))}",
-                mail=get("email_reservation_created").asBool()
-                and (
-                    tz.now()
-                    < (
-                        overall_start
-                        - datetime.timedelta(
-                            hours=get("email_notification_before").asInt()
-                        )
-                    )
-                ),
+        created: list[Reservation] = []
+        for run in runs:
+            run_start = tz.local_to_utc(
+                datetime.datetime.combine(req.date, run[0].start_time)
             )
-        )
+            run_end = tz.local_to_utc(
+                datetime.datetime.combine(req.date, run[-1].end_time)
+            )
 
-        if get("notif_admin_reservation_created").asBool() and (
-            get("notify_for_admin_actions").asBool() or not user.admin
-        ):
+            new_reservation = Reservation(
+                user_id=user.id,
+                shop=shop,
+                start_time=run_start,
+                end_time=run_end,
+                time_slot_id=None,
+            )
+
             session.add(
                 Notification.create(
-                    None,
-                    "notification.admin.reservation_created",
+                    user,
+                    "notification.reservation_created",
                     {
-                        "user": user.full_name,
                         "shop": shop.name,
-                        "datetime-start_time": overall_start.strftime("%Y-%m-%d %H:%M"),
-                        "duration": int(
-                            (overall_end - overall_start).total_seconds() // 60
-                        ),
+                        "datetime-start_time": run_start.strftime("%Y-%m-%d %H:%M"),
+                        "duration": int((run_end - run_start).total_seconds() // 60),
+                        "ics": new_reservation.ics_data(),
                     },
-                    route=f"/shops/{shop.id}/{monday_str(tz.utc_to_local(overall_start))}",
-                    is_reminder=True,
-                    mail=get("email_admin_reservation_created").asBool(),
+                    route=f"/shops/{shop.id}/{monday_str(tz.utc_to_local(run_start))}",
+                    mail=get("email_reservation_created").asBool()
+                    and (
+                        tz.now()
+                        < (
+                            run_start
+                            - datetime.timedelta(
+                                hours=get("email_notification_before").asInt()
+                            )
+                        )
+                    ),
                 )
             )
 
-        session.add(new_reservation)
-        session.commit()
-        session.refresh(new_reservation)
+            if get("notif_admin_reservation_created").asBool() and (
+                get("notify_for_admin_actions").asBool() or not user.admin
+            ):
+                session.add(
+                    Notification.create(
+                        None,
+                        "notification.admin.reservation_created",
+                        {
+                            "user": user.full_name,
+                            "shop": shop.name,
+                            "datetime-start_time": run_start.strftime("%Y-%m-%d %H:%M"),
+                            "duration": int((run_end - run_start).total_seconds() // 60),
+                        },
+                        route=f"/shops/{shop.id}/{monday_str(tz.utc_to_local(run_start))}",
+                        is_reminder=True,
+                        mail=get("email_admin_reservation_created").asBool(),
+                    )
+                )
 
-        result = ReservedTimeRange.from_reservation(new_reservation, user)
+            session.add(new_reservation)
+            created.append(new_reservation)
+
+        session.commit()
+        result = []
+        for reservation in created:
+            session.refresh(reservation)
+            result.append(ReservedTimeRange.from_reservation(reservation, user))
     return result
 
 
