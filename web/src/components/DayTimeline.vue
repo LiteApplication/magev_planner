@@ -241,8 +241,17 @@ export default defineComponent({
 }
 
 .task-selected {
-    outline: 2px solid white;
-    outline-offset: -2px;
-    filter: brightness(1.2);
+    /* Dark, high-contrast ring so the selection reads clearly on the light theme. */
+    outline: 3px solid #0f172a;
+    outline-offset: -1px;
+    box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.35);
+    filter: brightness(1.1);
+}
+
+@media (prefers-color-scheme: dark) {
+    .task-selected {
+        outline-color: #ffffff;
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.4);
+    }
 }
 </style>
