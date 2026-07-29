@@ -35,8 +35,13 @@ def create_user(
         # Check if the user already exists
         statement = select(User).where(User.email == user_data.email)
         user = session.exec(statement).first()
-        if user is not None and user.hashed_password:
-            raise HTTPException(status_code=400, detail="error.user.already_exists")
+        if user is not None:
+            if user.hashed_password:
+                raise HTTPException(status_code=400, detail="error.user.already_exists")
+            # An uninitialised user with this email already exists (e.g. a blank
+            # "New User" row): return it so the admin edits it instead of hitting
+            # a UNIQUE constraint by inserting a duplicate.
+            return UserResult.from_user(user)
 
         # sanitize user input
         user_data.email = user_data.email.strip()

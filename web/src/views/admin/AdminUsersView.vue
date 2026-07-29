@@ -128,9 +128,10 @@ const onRowEditInit = (e: any) => {
 };
 
 function loadList() {
-    usersApi.list().then(
+    return usersApi.list().then(
         (r) => {
             users.value = r;
+            return r;
         }
     ).catch(handleError(toast, $t));
 }
@@ -163,7 +164,14 @@ const selectedUsers = ref<User[]>([]);
 onMounted(loadList);
 
 function addUser() {
-    usersApi.create('', 'New', 'User', '', '', '', false).then(loadList).catch(handleError(toast, $t));
+    // Creating with a blank email reuses an existing uninitialised user if one is
+    // already present, so we always land on a row to edit rather than duplicating.
+    usersApi.create('', 'New', 'User', '', '', '', false).then((user) => {
+        loadList()?.then((list) => {
+            const created = (list ?? []).find((u) => u.id === user.id);
+            if (created) onRowEditInit({ data: created });
+        });
+    }).catch(handleError(toast, $t));
 }
 
 // Function to confirm and delete selected users
