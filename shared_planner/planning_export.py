@@ -296,8 +296,28 @@ def _build_contacts_sheet(doc: OpenDocumentSpreadsheet, users: list[User]) -> No
     doc.spreadsheet.addElement(table)
 
 
-def build_planning_ods(range_mode: str) -> bytes:
-    """Build the planning workbook and return the ODS file bytes."""
+def _weeks_between(start: datetime.date, end: datetime.date) -> list[datetime.date]:
+    """Return the Monday of every week spanned by the [start, end] range."""
+    if end < start:
+        start, end = end, start
+    start_monday = _local_monday(start)
+    end_monday = _local_monday(end)
+    count = max(1, ((end_monday - start_monday).days // 7) + 1)
+    return [start_monday + datetime.timedelta(weeks=w) for w in range(count)]
+
+
+def build_planning_ods(
+    range_mode: str,
+    start: str | None = None,
+    end: str | None = None,
+    group: str | None = None,
+) -> bytes:
+    """Build the planning workbook and return the ODS file bytes.
+
+    ``start``/``end`` (``YYYY-MM-DD``) select an explicit period, overriding
+    ``range_mode``. ``group`` restricts the export to volunteers of a single
+    group; when omitted, every group is included.
+    """
     if range_mode not in (RANGE_WEEK, RANGE_FORTNIGHT, RANGE_ALL):
         range_mode = RANGE_WEEK
 
@@ -306,14 +326,28 @@ def build_planning_ods(range_mode: str) -> bytes:
 
     with SessionLock() as session:
         shops = list(session.exec(select(Shop).order_by(Shop.name)))
-        users = list(session.exec(select(User).order_by(User.last_name, User.first_name)))
-        all_reservations = list(session.exec(select(Reservation)))
+        users_query = select(User)
+        if group:
+            users_query = users_query.where(User.group == group)
+        users = list(session.exec(users_query.order_by(User.last_name, User.first_name)))
 
-        # Determine the export range from the last reservation (local time).
-        last_end_local = None
-        if all_reservations:
-            last_end_local = tz.utc_to_local(max(r.end_time for r in all_reservations))
-        weeks = _weeks_in_range(range_mode, last_end_local)
+        all_reservations = list(session.exec(select(Reservation)))
+        if group:
+            all_reservations = [r for r in all_reservations if r.user.group == group]
+
+        # An explicit start/end period takes precedence over the fixed range mode.
+        if start and end:
+            weeks = _weeks_between(
+                datetime.date.fromisoformat(start), datetime.date.fromisoformat(end)
+            )
+        else:
+            # Determine the export range from the last reservation (local time).
+            last_end_local = None
+            if all_reservations:
+                last_end_local = tz.utc_to_local(
+                    max(r.end_time for r in all_reservations)
+                )
+            weeks = _weeks_in_range(range_mode, last_end_local)
 
         # One content validation referencing the contacts name column (A2:A{n+1}).
         last_contact_row = len(users) + 1
