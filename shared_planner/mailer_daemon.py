@@ -1,6 +1,9 @@
 from email.policy import SMTP
 import json
+import logging
 import os
+import socket
+import ssl
 import time
 import threading
 from queue import Queue
@@ -39,7 +42,10 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
 SMTP_USER = os.getenv("SMTP_USER")
 SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "false").lower() in ("true", "1", "y", "yes")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+SMTP_TIMEOUT = float(os.getenv("SMTP_TIMEOUT", 15))
 TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "..", "templates")
+
+logger = logging.getLogger(__name__)
 
 SUBJECTS = {
     "password_reset": "[MAGEV] Réinitialisation de mot de passe",
@@ -59,6 +65,102 @@ SUBJECTS = {
 mail_queue = Queue()
 # Set locale to French
 locale.setlocale(locale.LC_TIME, "fr_FR.UTF-8")
+
+
+class SMTPConfigurationError(RuntimeError):
+    """The SMTP server could not be reached, negotiated with, or logged into."""
+
+
+def smtp_connect() -> smtplib.SMTP:
+    """Open an authenticated SMTP connection.
+
+    Every failure is translated into a SMTPConfigurationError saying which step
+    failed, so a startup failure is readable without a traceback.
+    """
+    missing = [
+        name
+        for name, value in (
+            ("SMTP_SERVER", SMTP_SERVER),
+            ("SMTP_USER", SMTP_USER),
+            ("SMTP_PASSWORD", SMTP_PASSWORD),
+        )
+        if not value
+    ]
+    if missing:
+        raise SMTPConfigurationError(f"missing env var(s): {', '.join(missing)}")
+
+    target = f"{SMTP_SERVER}:{SMTP_PORT}"
+    try:
+        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT, timeout=SMTP_TIMEOUT)
+    except socket.gaierror as e:
+        raise SMTPConfigurationError(f"cannot resolve host {SMTP_SERVER!r}: {e}") from e
+    except (socket.timeout, TimeoutError) as e:
+        raise SMTPConfigurationError(
+            f"connect to {target} timed out after {SMTP_TIMEOUT:g}s"
+        ) from e
+    except ConnectionRefusedError as e:
+        raise SMTPConfigurationError(f"connection refused by {target}") from e
+    except OSError as e:
+        raise SMTPConfigurationError(f"cannot connect to {target}: {e}") from e
+    except smtplib.SMTPException as e:
+        raise SMTPConfigurationError(f"bad SMTP greeting from {target}: {e}") from e
+
+    try:
+        if SMTP_USE_TLS:
+            try:
+                server.starttls()
+            except smtplib.SMTPNotSupportedError as e:
+                raise SMTPConfigurationError(
+                    f"{target} does not support STARTTLS, but SMTP_USE_TLS is set"
+                ) from e
+            except ssl.SSLError as e:
+                raise SMTPConfigurationError(
+                    f"TLS handshake with {target} failed: {e}"
+                ) from e
+
+        try:
+            server.login(SMTP_USER, SMTP_PASSWORD)
+        except smtplib.SMTPAuthenticationError as e:
+            raise SMTPConfigurationError(
+                f"{target} rejected credentials for {SMTP_USER!r}: "
+                f"{e.smtp_code} {e.smtp_error.decode(errors='replace')}"
+            ) from e
+        except smtplib.SMTPNotSupportedError as e:
+            raise SMTPConfigurationError(f"{target} does not support AUTH: {e}") from e
+        except smtplib.SMTPException as e:
+            raise SMTPConfigurationError(
+                f"login to {target} as {SMTP_USER!r} failed: {e}"
+            ) from e
+        except OSError as e:
+            raise SMTPConfigurationError(
+                f"connection to {target} dropped during login: {e}"
+            ) from e
+    except BaseException:
+        server.close()
+        raise
+
+    return server
+
+
+def check_smtp_connection() -> None:
+    """Connect and authenticate once, to fail fast on a bad SMTP config."""
+    logger.info(
+        "Checking SMTP %s:%s (TLS %s, user %s)",
+        SMTP_SERVER,
+        SMTP_PORT,
+        "on" if SMTP_USE_TLS else "off",
+        SMTP_USER,
+    )
+    try:
+        server = smtp_connect()
+    except SMTPConfigurationError as e:
+        logger.error("SMTP check failed: %s", e)
+        raise
+    try:
+        server.quit()
+    except smtplib.SMTPException:
+        server.close()
+    logger.info("SMTP check OK")
 
 
 def d(value, format_type="date"):
@@ -138,10 +240,7 @@ def send_rendered_mail(
         return
 
     try:
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            if SMTP_USE_TLS:
-                server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
+        with smtp_connect() as server:
             server.sendmail(SMTP_USER, email, msg.as_string())
             print(f"Email sent to {email}")
     except Exception as e:
@@ -253,14 +352,25 @@ def mailer_daemon():
 
 
 def start_mailer_daemon():
+    """Start the daemon thread. Raises SMTPConfigurationError if SMTP is unusable."""
     global daemon_running, daemon_thread
+    if get("block_all_emails").asBool():
+        logger.warning("block_all_emails is set, skipping SMTP check")
+    else:
+        check_smtp_connection()
     daemon_running = True
     daemon_thread = threading.Thread(target=mailer_daemon, daemon=True)
     daemon_thread.start()
 
 
 def main():
-    start_mailer_daemon()
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+    )
+    try:
+        start_mailer_daemon()
+    except SMTPConfigurationError:
+        raise SystemExit(1)
     # Keep the main thread alive
     while True:
         time.sleep(1)
