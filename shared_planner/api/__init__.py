@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
+from shared_planner.logs import setup_logging
+
 from shared_planner.api.auth import router as auth_router
 from shared_planner.api.users import router as users_router
 from shared_planner.api.shops import router as shops_router, timerange_router
@@ -17,6 +19,7 @@ from shared_planner.api.export import router as export_router
 
 @asynccontextmanager
 async def mailer_daemon_context(app: FastAPI):
+    setup_logging()
     yield
 
 

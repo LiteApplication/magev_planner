@@ -14,6 +14,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.image import MIMEImage
+from email.utils import parseaddr
 from sqlmodel import select
 from shared_planner.db.models import (
     Setting,
@@ -27,6 +28,7 @@ from shared_planner.db.session import SessionLock
 from shared_planner.week import monday_str
 from shared_planner.ics import create_ics
 from shared_planner import tz
+from shared_planner.logs import setup_logging
 from shared_planner.mail_render import (
     get_template_markdown,
     get_template_subject,
@@ -80,22 +82,19 @@ class SMTPConfigurationError(RuntimeError):
 
 
 def smtp_connect() -> smtplib.SMTP:
-    """Open an authenticated SMTP connection.
+    """Open an SMTP connection, authenticating if credentials are configured.
 
     Every failure is translated into a SMTPConfigurationError saying which step
     failed, so a startup failure is readable without a traceback.
     """
-    missing = [
-        name
-        for name, value in (
-            ("SMTP_SERVER", SMTP_SERVER),
-            ("SMTP_USER", SMTP_USER),
-            ("SMTP_PASSWORD", SMTP_PASSWORD),
+    if not SMTP_SERVER:
+        raise SMTPConfigurationError("missing env var: SMTP_SERVER")
+    # An empty user *and* password means an open relay such as the dev MailHog
+    # container, where AUTH must be skipped entirely.
+    if bool(SMTP_USER) != bool(SMTP_PASSWORD):
+        raise SMTPConfigurationError(
+            "SMTP_USER and SMTP_PASSWORD must be both set or both empty"
         )
-        if not value
-    ]
-    if missing:
-        raise SMTPConfigurationError(f"missing env var(s): {', '.join(missing)}")
 
     target = f"{SMTP_SERVER}:{SMTP_PORT}"
     try:
@@ -125,6 +124,9 @@ def smtp_connect() -> smtplib.SMTP:
                 raise SMTPConfigurationError(
                     f"TLS handshake with {target} failed: {e}"
                 ) from e
+
+        if not SMTP_USER:
+            return server
 
         try:
             server.login(SMTP_USER, SMTP_PASSWORD)
@@ -157,7 +159,7 @@ def check_smtp_connection() -> None:
         SMTP_SERVER,
         SMTP_PORT,
         "on" if SMTP_USE_TLS else "off",
-        SMTP_USER,
+        SMTP_USER or "<anonymous>",
     )
     try:
         server = smtp_connect()
@@ -248,9 +250,12 @@ def send_rendered_mail(
         return
 
     logger.info("Sending email to %s (%s)", mask_email(email), subject)
+    # Envelope sender: the SMTP account when authenticated, otherwise the
+    # bare address out of mail_from (which may carry a display name).
+    sender = SMTP_USER or parseaddr(msg["From"])[1]
     try:
         with smtp_connect() as server:
-            server.sendmail(SMTP_USER, email, msg.as_string())
+            server.sendmail(sender, email, msg.as_string())
             logger.info("Email sent to %s", mask_email(email))
     except Exception as e:
         logger.error("Failed to send email to %s: %s", mask_email(email), e)
@@ -373,9 +378,7 @@ def start_mailer_daemon():
 
 
 def main():
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
-    )
+    setup_logging()
     try:
         start_mailer_daemon()
     except SMTPConfigurationError:
