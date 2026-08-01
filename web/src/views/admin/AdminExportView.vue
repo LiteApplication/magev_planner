@@ -16,7 +16,8 @@
                 <div class="flex flex-col gap-1">
                     <label class="text-sm text-slate-500 dark:text-slate-400">{{ $t('admin.export.period') }}</label>
                     <DatePicker v-model="period" selectionMode="range" :manualInput="false" showIcon showButtonBar
-                        date-format="dd/mm/yy" class="w-72" :placeholder="$t('admin.export.pick_period')" />
+                        date-format="dd/mm/yy" class="w-72" :placeholder="$t('admin.export.pick_period')"
+                        @hide="fillDefaultEnd" />
                 </div>
                 <div class="flex flex-col gap-1">
                     <label class="text-sm text-slate-500 dark:text-slate-400">{{ $t('admin.export.group') }}</label>
@@ -91,6 +92,22 @@ const options: { range: PlanningRange; titleKey: string; descKey: string; icon: 
 function toDayStr(d: Date): string {
     const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
     return local.toISOString().slice(0, 10);
+}
+
+/** Adds one month, clamping to the last day of the target month (31/01 -> 28/02). */
+function addOneMonth(d: Date): Date {
+    const day = d.getDate();
+    const res = new Date(d.getFullYear(), d.getMonth() + 1, 1, d.getHours(), d.getMinutes());
+    const lastDay = new Date(res.getFullYear(), res.getMonth() + 1, 0).getDate();
+    res.setDate(Math.min(day, lastDay));
+    return res;
+}
+
+/** When the picker closes with only a start date, default the end to one month later. */
+function fillDefaultEnd() {
+    const start = period.value?.[0];
+    if (!start || period.value?.[1]) return;
+    period.value = [start, addOneMonth(start)];
 }
 
 function download(range: PlanningRange) {

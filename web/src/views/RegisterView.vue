@@ -156,7 +156,9 @@ const onSubmit = async () => {
 
                     <div class="flex items-start gap-2 mt-1">
                         <Checkbox v-model="accepted_privacy" :binary="true" inputId="accept-privacy" />
-                        <label for="accept-privacy" class="text-xs text-justify">{{ $t('message.privacy_consent') }}</label>
+                        <label for="accept-privacy" class="flex flex-col gap-2 text-xs text-justify">
+                            <span v-for="(p, i) in $t('message.privacy_consent').split('\n')" :key="i">{{ p }}</span>
+                        </label>
                     </div>
                 </div>
             </template>
