@@ -67,6 +67,14 @@ mail_queue = Queue()
 locale.setlocale(locale.LC_TIME, "fr_FR.UTF-8")
 
 
+def mask_email(email: str) -> str:
+    """Keep only the first letter of the local part, plus the full domain."""
+    local, sep, domain = (email or "").partition("@")
+    if not sep:
+        return f"{local[:1]}***" if local else "***"
+    return f"{local[:1]}***@{domain}"
+
+
 class SMTPConfigurationError(RuntimeError):
     """The SMTP server could not be reached, negotiated with, or logged into."""
 
@@ -236,15 +244,16 @@ def send_rendered_mail(
     msg.attach(MIMEText(template_content, "html"))
 
     if get("block_all_emails").asBool():
-        print(f"Email to {email} blocked by setting")
+        logger.info("Email to %s blocked by setting", mask_email(email))
         return
 
+    logger.info("Sending email to %s (%s)", mask_email(email), subject)
     try:
         with smtp_connect() as server:
             server.sendmail(SMTP_USER, email, msg.as_string())
-            print(f"Email sent to {email}")
+            logger.info("Email sent to %s", mask_email(email))
     except Exception as e:
-        print(f"Failed to send email to {email}: {e}")
+        logger.error("Failed to send email to %s: %s", mask_email(email), e)
 
 
 def queue_mail(name, email, template, data):
