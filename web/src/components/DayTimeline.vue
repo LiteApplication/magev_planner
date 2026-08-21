@@ -13,7 +13,7 @@
         <div class="timeline-container" :style="cssVars">
             <div v-for="(task, index) in sortedTasksWithRows" class="task rounded" :class="{ disabled: task.title == null, 'task-selected': task.selected }" :key="index"
                 :style="taskStyle(task)" v-tooltip="{
-                    value: `<h3 style='font-weight: bold'>${task.title}</h3><p>${task.description}</p>`,
+                    value: `<h3 style='font-weight: bold'>${escapeHtml(task.title)}</h3><p>${escapeHtml(task.description)}</p>`,
                     escape: false, hideDelay: 0
                 }" @click="$emit('clickTask', task)" @dblclick="$emit('dblclickTask', task)">
             </div>
@@ -127,6 +127,11 @@ export default defineComponent({
 
     },
     methods: {
+        escapeHtml(value: string | null | undefined) {
+            const div = document.createElement('div');
+            div.textContent = value ?? '';
+            return div.innerHTML;
+        },
         formatTime(time: string) {
             const [hour, minute] = time.split(':');
             return `${hour}:${minute}`;

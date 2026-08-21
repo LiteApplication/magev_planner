@@ -36,11 +36,17 @@ const isLoading = defineModel('loading', { type: Boolean, default: false });
 const selectedSlots = ref<Set<string>>(new Set());
 const confirmDialogVisible = ref(false);
 
-// Admin slot manager: list/contact/remove the people booked into a slot.
+// Admin slot manager: list/contact/remove/add the people booked into a slot.
 const slotManagerVisible = ref(false);
 const slotManagerLoading = ref(false);
 const slotBookings = ref<SlotBooking[]>([]);
 const slotManagerInfo = ref<{ slotId: number; date: string; label: string } | null>(null);
+const manageAddUser = ref<User | null>(null);
+const manageAddLoading = ref(false);
+const manageAddCandidates = computed<User[]>(() => {
+    const bookedIds = new Set(slotBookings.value.map(b => b.user_id));
+    return allUsers.value.filter(u => !bookedIds.has(u.id));
+});
 
 // Admin assign dialog: put a user into one of the day's slots.
 const assignVisible = ref(false);
@@ -138,14 +144,18 @@ const displayedTasks = computed<Task[][]>(() =>
                 });
             }
 
-            // Booked-by-others lanes
+            // Booked-by-others lanes. Admins get the actual booker's name in the
+            // tooltip (via task.title); other users just see the generic label.
+            const othersBookings = (ss.bookings ?? []).filter(b => b.reservation_id !== ss.reservation_id);
             for (let i = 0; i < bookedByOthers; i++) {
+                const booking = othersBookings[i];
                 tasks.push({
                     ...common,
+                    reservation_id: booking ? booking.reservation_id : common.reservation_id,
                     color: '#ef4444',
                     cursor: 'not-allowed',
-                    title: t('message.reservation.booked'),
-                    status: 1,
+                    title: booking ? booking.full_name : t('message.reservation.booked'),
+                    status: booking ? booking.user_id : 1,
                 });
             }
 
@@ -205,6 +215,16 @@ function canAddSlot(task: Task): boolean {
     return task.slot_date === bounds.date;
 }
 
+async function ensureUsersLoaded() {
+    if (allUsers.value.length === 0) {
+        try {
+            allUsers.value = await usersApi.list();
+        } catch (e) {
+            handleError(toast, t)(e);
+        }
+    }
+}
+
 async function openSlotManager(task: Task) {
     if (!task.slot_id || !task.slot_date) return;
     // Build a human-readable header from the slot details in the planning.
@@ -218,8 +238,28 @@ async function openSlotManager(task: Task) {
     }
     slotManagerInfo.value = { slotId: task.slot_id, date: task.slot_date, label };
     slotBookings.value = [];
+    manageAddUser.value = null;
     slotManagerVisible.value = true;
-    await loadSlotBookings();
+    await Promise.all([loadSlotBookings(), ensureUsersLoaded()]);
+}
+
+async function addPersonToSlot() {
+    if (!slotManagerInfo.value || !manageAddUser.value) return;
+    manageAddLoading.value = true;
+    try {
+        await reservationApi.assign(props.shopId, {
+            time_slot_id: slotManagerInfo.value.slotId,
+            date: slotManagerInfo.value.date,
+            user_id: manageAddUser.value.id,
+        });
+        manageAddUser.value = null;
+        await Promise.all([loadSlotBookings(), fetchPlanning()]);
+        toast.add({ severity: 'success', summary: t('message.success'), detail: t('message.reservation.user_assigned'), life: 4000 });
+    } catch (e) {
+        handleError(toast, t, 'error.reservation.unknown')(e);
+    } finally {
+        manageAddLoading.value = false;
+    }
 }
 
 async function loadSlotBookings() {
@@ -264,13 +304,7 @@ async function openAssignDialog(dayIndex: number) {
     assignSlot.value = planning.value[dayIndex]?.[0] ?? null;
     assignUser.value = null;
     assignVisible.value = true;
-    if (allUsers.value.length === 0) {
-        try {
-            allUsers.value = await usersApi.list();
-        } catch (e) {
-            handleError(toast, t)(e);
-        }
-    }
+    await ensureUsersLoaded();
 }
 
 async function assignSelected() {
@@ -482,6 +516,17 @@ function dayName(date: string): string {
                     @click="removeBooking(b)" v-tooltip="t('message.reservation.remove')" />
             </li>
         </ul>
+
+        <!-- Add a person to this slot, uncapped by max_volunteers -->
+        <div class="flex items-end gap-2 mt-4 pt-4" style="border-top: 1px solid var(--p-content-border-color)">
+            <div class="flex flex-col gap-2 grow min-w-0">
+                <label>{{ t('message.reservation.person') }}</label>
+                <Select v-model="manageAddUser" :options="manageAddCandidates" optionLabel="full_name" filter
+                    class="w-full" :placeholder="t('message.reservation.person')" />
+            </div>
+            <Button icon="pi pi-user-plus" :label="t('message.reservation.assign')" @click="addPersonToSlot"
+                :loading="manageAddLoading" :disabled="manageAddLoading || !manageAddUser" />
+        </div>
     </Dialog>
 
     <!-- Admin: assign a user to one of the day's slots -->

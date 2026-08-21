@@ -122,7 +122,8 @@ type SlotStatus = {
     booked_count: number,
     booked_by_me: boolean,
     reservation_id: number | null,
-    validated: boolean
+    validated: boolean,
+    bookings?: SlotBooking[] | null
 }
 
 type SlotBooking = {

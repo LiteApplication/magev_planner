@@ -11,7 +11,6 @@ import Checkbox from 'primevue/checkbox';
 
 
 import { usersApi } from '@/main';
-import { api } from '@/api';
 
 const { t: $t } = useI18n();
 

@@ -1,5 +1,5 @@
 <template>
-    <Dialog v-model:visible="visible" modal :header="slot?.id ? $t('message.edit') : $t('message.add')"
+    <Dialog v-model:visible="visible" modal :header="editingSlot?.id ? $t('message.edit') : $t('message.add')"
         :style="{ width: '28rem' }" :closable="true">
         <div class="flex flex-col gap-4 pt-2">
             <div class="flex gap-4">
@@ -38,10 +38,10 @@
         </div>
         <template #footer>
             <div class="flex justify-between w-full">
-                <Button v-if="slot?.id" :label="$t('message.delete')" severity="danger" text @click="onDelete" />
+                <Button v-if="editingSlot?.id" :label="$t('message.delete')" severity="danger" text @click="onDelete" />
                 <div class="flex gap-2 ml-auto">
                     <Button :label="$t('message.cancel')" text @click="visible = false" />
-                    <SplitButton v-if="slot?.id" :label="$t('admin.shop.slot_save_all')" :model="saveMenuItems"
+                    <SplitButton v-if="editingSlot?.id" :label="$t('admin.shop.slot_save_all')" :model="saveMenuItems"
                         @click="onSave('all')" />
                     <Button v-else :label="$t('message.save')" @click="onSave('all')" />
                 </div>
@@ -64,7 +64,7 @@ import IftaLabel from 'primevue/iftalabel';
 import DatePicker from '@/components/primevue/DatePicker';
 
 const props = defineProps<{
-    slot: Partial<TimeSlot> | null,
+    editingSlot: Partial<TimeSlot> | null,
     shopId: number
 }>();
 
@@ -92,7 +92,7 @@ const form = ref({
     valid_until_date: new Date(new Date().getFullYear(), 11, 31),
 });
 
-watch(() => props.slot, (slot) => {
+watch(() => props.editingSlot, (slot) => {
     if (!slot) return;
     form.value.day = slot.day ?? 0;
     form.value.start_time = slot.start_time ? slot.start_time.slice(0, 5) : '09:00';
@@ -118,7 +118,7 @@ function onSave(mode: SaveMode) {
     }
     error.value = null;
     emit('save', {
-        id: props.slot?.id,
+        id: props.editingSlot?.id,
         shop_id: props.shopId,
         day: form.value.day,
         start_time: form.value.start_time + ':00',
@@ -131,8 +131,8 @@ function onSave(mode: SaveMode) {
 }
 
 function onDelete() {
-    if (props.slot?.id) {
-        emit('delete', props.slot.id);
+    if (props.editingSlot?.id) {
+        emit('delete', props.editingSlot.id);
         visible.value = false;
     }
 }

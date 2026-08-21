@@ -7,12 +7,9 @@ import { authApi, notificationsApi } from '@/main';
 import { useRouter } from 'vue-router';
 import Button from 'primevue/button';
 import LocaleChanger from './LocaleChanger.vue';
-import handleError from '@/error_handler';
-import { useToast } from 'primevue/usetoast';
 
 const $t = useI18n().t;
 const router = useRouter();
-const toast = useToast();
 
 const logout = () => {
     authApi.logout();

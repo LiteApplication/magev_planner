@@ -1,7 +1,6 @@
 <script setup lang="ts">
 
 import { defineComponent, onMounted, ref, type Ref } from 'vue'
-import { useRouter } from 'vue-router';
 
 import { useToast } from 'primevue/usetoast';
 import { useI18n } from 'vue-i18n';
@@ -11,7 +10,6 @@ import { exampleShop, type Shop } from '@/api/types';
 import { shopApi } from '@/main';
 import handleError from '@/error_handler';
 
-const $router = useRouter();
 const toast = useToast();
 const $t = useI18n().t;
 

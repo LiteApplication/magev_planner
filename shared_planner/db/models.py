@@ -368,26 +368,36 @@ class PasswordReset(SQLModel, table=True):
     user_id: int = Field(foreign_key="user.id")
     user: User = Relationship()
     token: str
+    created_at: datetime.datetime = Field(default_factory=tz.now)
     expires_at: datetime.datetime
     used: bool = False
     sent: bool = False
 
     @staticmethod
-    def create(user: User, session: "SessionLock") -> "PasswordReset":
+    def rate_limited(user: User, session: "SessionLock") -> bool:
+        """Whether this account has requested a reset too recently to allow another one"""
         # Import here to avoid circular import
         from shared_planner.db.settings import get
 
-        # Check if there is already a reset request
-        # resets = session.exec(
-        #    select(func.count(PasswordReset.id)).where(
-        #        PasswordReset.user_id == user.id,
-        #        not_(PasswordReset.used),
-        #        PasswordReset.expires_at > tz.now(),
-        #    )
-        # ).first()
+        cooldown = get("password_reset_cooldown_minutes").asInt()
+        if cooldown <= 0:
+            return False
 
-        # if resets > 0:
-        #    raise HTTPException(status_code=400, detail="error.reset_request_exists")
+        last_reset = session.exec(
+            select(PasswordReset)
+            .where(PasswordReset.user_id == user.id)
+            .order_by(PasswordReset.created_at.desc())
+        ).first()
+
+        if last_reset is None:
+            return False
+
+        return last_reset.created_at + datetime.timedelta(minutes=cooldown) > tz.now()
+
+    @staticmethod
+    def create(user: User, session: "SessionLock") -> "PasswordReset":
+        # Import here to avoid circular import
+        from shared_planner.db.settings import get
 
         # Create the reset request
         return PasswordReset(

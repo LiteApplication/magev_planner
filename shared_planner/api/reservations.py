@@ -66,17 +66,6 @@ class ReservedTimeRange(BaseModel):
         )
 
 
-class SlotStatus(BaseModel):
-    """Status of a time slot for a specific date"""
-
-    slot: TimeSlotOut
-    date: datetime.date
-    booked_count: int
-    booked_by_me: bool
-    reservation_id: int | None = None
-    validated: bool = False
-
-
 class SlotBooking(BaseModel):
     """A single person booked into a slot, with contact details (admin view)."""
 
@@ -87,6 +76,19 @@ class SlotBooking(BaseModel):
     phone: str = ""
     group: str = ""
     validated: bool = False
+
+
+class SlotStatus(BaseModel):
+    """Status of a time slot for a specific date"""
+
+    slot: TimeSlotOut
+    date: datetime.date
+    booked_count: int
+    booked_by_me: bool
+    reservation_id: int | None = None
+    validated: bool = False
+    # Who is booked into this slot. Only populated for admins.
+    bookings: list[SlotBooking] | None = None
 
 
 class DaySlot(BaseModel):
@@ -170,6 +172,23 @@ def get_planning(
                     (r for r in slot_reservations if r.user_id == user.id), None
                 )
 
+                bookings = None
+                if user.admin:
+                    bookings = [
+                        SlotBooking(
+                            reservation_id=r.id,
+                            user_id=r.user_id,
+                            full_name=r.user.full_name,
+                            email=r.user.email,
+                            phone=r.user.phone,
+                            group=r.user.group,
+                            validated=r.validated,
+                        )
+                        for r in sorted(
+                            slot_reservations, key=lambda r: r.user.full_name.lower()
+                        )
+                    ]
+
                 day_statuses.append(
                     SlotStatus(
                         slot=TimeSlotOut.from_slot(slot),
@@ -178,6 +197,7 @@ def get_planning(
                         booked_by_me=my_res is not None,
                         reservation_id=my_res.id if my_res else None,
                         validated=my_res.validated if my_res else False,
+                        bookings=bookings,
                     )
                 )
 

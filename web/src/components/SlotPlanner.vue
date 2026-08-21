@@ -4,8 +4,10 @@
             <p class="text-sm text-slate-500 dark:text-slate-400">{{ $t('admin.shop.slot_drag_hint') }}</p>
             <div class="flex items-center gap-2 ml-auto">
                 <label class="text-sm" style="color: var(--p-text-muted-color)">{{ $t('admin.shop.slot_filter_date') }}</label>
+                <Button icon="pi pi-chevron-left" text rounded :disabled="!filterDate" @click="shiftWeek(-1)" />
                 <DatePicker v-model="filterDate" showButtonBar showIcon :date-format="$t('message.shops.week_format')"
                     :placeholder="$t('message.all')" class="w-44" />
+                <Button icon="pi pi-chevron-right" text rounded :disabled="!filterDate" @click="shiftWeek(1)" />
             </div>
         </div>
         <div class="slot-planner" @mouseleave="cancelDraw" @mouseup.prevent="endDraw">
@@ -54,7 +56,7 @@
         </div>
     </div>
 
-    <SlotEditDialog v-model:visible="editDialogVisible" :slot="editingSlot" :shopId="shopId"
+    <SlotEditDialog v-model:visible="editDialogVisible" :editingSlot="editingSlot" :shopId="shopId"
         @save="onSlotSave" @delete="onSlotDelete" />
 </template>
 
@@ -63,10 +65,7 @@ import { ref, reactive, computed } from 'vue';
 import type { TimeSlot, SaveMode, SlotOp } from '@/api/types';
 import SlotEditDialog from './dialog/SlotEditDialog.vue';
 import DatePicker from '@/components/primevue/DatePicker';
-import { useI18n } from 'vue-i18n';
-
-const { t } = useI18n();
-
+import Button from 'primevue/button';
 const props = defineProps<{
     slots: TimeSlot[],
     shopId: number
@@ -90,6 +89,11 @@ const visibleHours = computed(() => {
 });
 
 const filterDate = ref<Date | null>(new Date());
+
+function shiftWeek(delta: number) {
+    if (!filterDate.value) return;
+    filterDate.value = addDays(filterDate.value, delta * 7);
+}
 
 // Timeline element refs per day
 const timelineRefs = ref<(HTMLElement | null)[]>(Array(7).fill(null));

@@ -24,6 +24,12 @@ export default class AuthApi {
     await api.post("/auth/register", bodyFormData);
   }
 
+  async forgotPassword(email: string): Promise<void> {
+    const bodyFormData = new FormData();
+    bodyFormData.append('email', email);
+    await api.post("/auth/forgot_password", bodyFormData);
+  }
+
   async me(): Promise<User> {
     return api.get("/auth/me").then(response => response.data);
   }

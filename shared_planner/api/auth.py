@@ -226,6 +226,35 @@ def register(
     return
 
 
+@router.post("/forgot_password")
+def forgot_password(
+    email: Annotated[str, Form()],
+) -> None:
+    """Request a password reset email for an account (rate limited per account)"""
+    email = email.strip().lower()
+
+    with SessionLock() as session:
+        statement = select(User).where(User.email == email)
+        user = session.exec(statement).first()
+        if user is None:
+            return  # Do not raise an error to prevent email enumeration
+
+        if PasswordReset.rate_limited(user, session):
+            return  # Silently ignore to prevent spamming the account's inbox
+
+        reset = PasswordReset.create(user, session)
+        session.add(reset)
+        session.commit()
+
+        send_mail(
+            user.full_name,
+            user.email,
+            "password_reset",
+            {"token": reset.token, "validity_hours": get("reset_token_validity").value},
+        )
+    return
+
+
 @router.post("/logout")
 def logout(token: Annotated[Token, Depends(CurrentToken)]) -> str:
     with SessionLock() as session:

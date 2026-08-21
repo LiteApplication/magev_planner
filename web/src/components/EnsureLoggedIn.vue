@@ -8,7 +8,7 @@ import { useI18n } from 'vue-i18n';
 import { authApi } from '@/main';
 import { useToast } from 'primevue/usetoast';
 import { useRouter } from 'vue-router';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted } from 'vue';
 import LoadingScreen from './LoadingScreen.vue';
 import { defineComponent } from 'vue';
 import { loadUserFromSession, saveUserToSession } from '@/api';

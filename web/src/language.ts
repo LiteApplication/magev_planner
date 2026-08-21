@@ -89,6 +89,8 @@ const messages = {
       google_maps: "Google Maps",
       reset_password: "Reset password",
       set_password: "Set password",
+      forgot_password: "Forgot password?",
+      forgot_password_sent: "If an account exists for this email address, a reset link has been sent to it. Please check your inbox (and spam folder), it can take a few minutes.",
       mail_sent:
         "An email has been sent to you with a link to verify your email address. Please verify that you recieved the mail, and check your spam folder if you do not find it after a few minutes.",
       info: "Information",
@@ -652,6 +654,8 @@ const messages = {
       google_maps: "Google Maps",
       reset_password: "Réinitialiser le mot de passe",
       set_password: "Définir le mot de passe",
+      forgot_password: "Mot de passe oublié ?",
+      forgot_password_sent: "Si un compte existe pour cette adresse email, un lien de réinitialisation lui a été envoyé. Vérifiez votre boîte de réception (et vos spams), cela peut prendre quelques minutes.",
       mail_sent:
         'Un email vous a été envoyé avec un lien pour vérifier votre adresse email. Si vous ne recevez pas le message, vérifiez votre dossier "Indésirables/Spam". ',
       info: "Information",

@@ -16,9 +16,11 @@
                 <div v-if="shops.length === 0 && !loading" class="text-slate-400 text-sm text-center py-4">
                     {{ $t('message.empty_list') }}
                 </div>
-                <div v-if="loading" v-for="i in 3" :key="i" class="p-2">
-                    <Skeleton height="2rem" />
-                </div>
+                <template v-if="loading">
+                    <div v-for="i in 3" :key="i" class="p-2">
+                        <Skeleton height="2rem" />
+                    </div>
+                </template>
             </div>
         </div>
 

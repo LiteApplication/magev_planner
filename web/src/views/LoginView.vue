@@ -8,6 +8,7 @@ import InputText from 'primevue/inputtext';
 import Password from 'primevue/password';
 import Button from 'primevue/button';
 import Card from 'primevue/card';
+import Dialog from 'primevue/dialog';
 
 
 import { authApi } from '@/main';
@@ -19,6 +20,11 @@ const email = ref('');
 const password = ref('');
 const error_msg = ref('');
 const router = useRouter();
+
+const forgotPasswordVisible = ref(false);
+const forgotPasswordEmail = ref('');
+const forgotPasswordSent = ref(false);
+const forgotPasswordLoading = ref(false);
 
 const onSubmit = async () => {
     if (email.value === '' || password.value === '') {
@@ -49,6 +55,29 @@ const onSubmit = async () => {
     );
 };
 
+const openForgotPassword = () => {
+    forgotPasswordEmail.value = email.value;
+    forgotPasswordSent.value = false;
+    forgotPasswordVisible.value = true;
+};
+
+const onForgotPasswordSubmit = async () => {
+    if (forgotPasswordEmail.value === '') {
+        return;
+    }
+    forgotPasswordLoading.value = true;
+    try {
+        await authApi.forgotPassword(forgotPasswordEmail.value);
+    } catch (error) {
+        console.error(error);
+    } finally {
+        // Always report success, regardless of outcome, to avoid leaking
+        // whether an account exists for this email or is rate limited.
+        forgotPasswordLoading.value = false;
+        forgotPasswordSent.value = true;
+    }
+};
+
 
 
 </script>
@@ -70,6 +99,9 @@ const onSubmit = async () => {
                         <label for="password">{{ $t("message.password") }}</label>
                         <Password v-model="password" :feedback="false" id="password" autocomplete="current-password" />
                     </div>
+
+                    <Button v-bind:label="$t('message.forgot_password')" severity="secondary" text
+                        class="self-start p-0" v-on:click="openForgotPassword" />
                 </div>
 
             </template>
@@ -82,6 +114,18 @@ const onSubmit = async () => {
                 </div>
             </template>
         </Card>
+
+        <Dialog v-model:visible="forgotPasswordVisible" modal :header="$t('message.forgot_password')"
+            class="w-[25rem] max-w-full">
+            <p v-if="forgotPasswordSent">{{ $t('message.forgot_password_sent') }}</p>
+            <div v-else class="flex flex-col gap-2">
+                <label for="forgot-email">{{ $t("message.email") }}</label>
+                <InputText id="forgot-email" v-model="forgotPasswordEmail" autocomplete="email"
+                    v-on:keyup.enter="onForgotPasswordSubmit" />
+                <Button v-bind:label="$t('message.reset_password')" class="mt-2" :loading="forgotPasswordLoading"
+                    v-on:click="onForgotPasswordSubmit" />
+            </div>
+        </Dialog>
     </div>
 </template>
 
@@ -97,6 +141,7 @@ export default defineComponent({
         // eslint-disable-next-line vue/no-reserved-component-names
         Button,
         Card,
+        Dialog,
     },
 });
 </script>
