@@ -14,10 +14,16 @@
             </h2>
             <div class="flex flex-wrap items-end gap-4">
                 <div class="flex flex-col gap-1">
-                    <label class="text-sm text-slate-500 dark:text-slate-400">{{ $t('admin.export.period') }}</label>
-                    <DatePicker v-model="period" selectionMode="range" :manualInput="false" showIcon showButtonBar
-                        date-format="dd/mm/yy" class="w-72" :placeholder="$t('admin.export.pick_period')"
-                        @hide="fillDefaultEnd" />
+                    <label class="text-sm text-slate-500 dark:text-slate-400">{{ $t('admin.export.start_date') }}</label>
+                    <DatePicker v-model="startDate" :manualInput="false" showIcon showButtonBar
+                        date-format="dd/mm/yy" class="w-40" :placeholder="$t('admin.export.pick_start')"
+                        @update:modelValue="fillDefaultEnd" />
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-sm text-slate-500 dark:text-slate-400">{{ $t('admin.export.end_date') }}</label>
+                    <DatePicker v-model="endDate" :manualInput="false" showIcon showButtonBar
+                        date-format="dd/mm/yy" class="w-40" :placeholder="$t('admin.export.pick_end')"
+                        :minDate="startDate ?? undefined" />
                 </div>
                 <div class="flex flex-col gap-1">
                     <label class="text-sm text-slate-500 dark:text-slate-400">{{ $t('admin.export.group') }}</label>
@@ -66,7 +72,8 @@ const $t = useI18n().t;
 const toast = useToast();
 
 const loading = ref<PlanningRange | 'custom' | null>(null);
-const period = ref<(Date | null)[] | null>(null);
+const startDate = ref<Date | null>(null);
+const endDate = ref<Date | null>(null);
 const selectedGroup = ref<string>('');
 const groups = ref<string[]>([]);
 
@@ -75,7 +82,7 @@ const groupOptions = computed(() => [
     ...groups.value.map((g) => ({ label: g, value: g })),
 ]);
 
-const validPeriod = computed(() => !!period.value && !!period.value[0] && !!period.value[1]);
+const validPeriod = computed(() => !!startDate.value && !!endDate.value);
 
 onMounted(() => {
     enterpriseApi.list().then((list) => {
@@ -103,11 +110,10 @@ function addOneMonth(d: Date): Date {
     return res;
 }
 
-/** When the picker closes with only a start date, default the end to one month later. */
+/** When a start date is picked and no end date is set yet, default it to one month later. */
 function fillDefaultEnd() {
-    const start = period.value?.[0];
-    if (!start || period.value?.[1]) return;
-    period.value = [start, addOneMonth(start)];
+    if (!startDate.value || endDate.value) return;
+    endDate.value = addOneMonth(startDate.value);
 }
 
 function download(range: PlanningRange) {
@@ -123,8 +129,8 @@ function download(range: PlanningRange) {
 function downloadCustom() {
     if (!validPeriod.value) return;
     loading.value = 'custom';
-    const start = toDayStr(period.value![0]!);
-    const end = toDayStr(period.value![1]!);
+    const start = toDayStr(startDate.value!);
+    const end = toDayStr(endDate.value!);
     const group = selectedGroup.value || undefined;
     exportApi.downloadPlanning('all', { start, end, group }).then(() => {
         toast.add({ severity: 'success', summary: $t('message.success'), detail: $t('admin.export.downloaded'), life: 2500 });
