@@ -177,8 +177,13 @@ function slotsForDay(day: number): TimeSlot[] {
     return props.slots.filter(s => {
         if (s.day !== day) return false;
         if (!filterDate.value) return true;
-        const d = dateStr(filterDate.value);
-        return s.valid_from <= d && s.valid_until >= d;
+        // Compare against this slot's actual occurrence date within the
+        // selected week, not the raw filter anchor (which may land on a
+        // different weekday) — otherwise single-week slots whose
+        // valid_from/valid_until pin them to one exact date can fail the
+        // comparison and vanish from view.
+        const occ = dateStr(occurrenceDate(filterDate.value, day));
+        return s.valid_from <= occ && s.valid_until >= occ;
     });
 }
 
@@ -288,6 +293,14 @@ function occurrenceDate(ref: Date, slotDay: number): Date {
     return d;
 }
 
+// Monday of the week containing `ref`
+function weekStart(ref: Date): Date {
+    const d = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
+    const mondayOffset = (d.getDay() + 6) % 7;
+    d.setDate(d.getDate() - mondayOffset);
+    return d;
+}
+
 function onSlotSave(slot: Partial<TimeSlot>, mode: SaveMode = 'all') {
     if (!slot.id) {
         emit('create', slot);
@@ -328,12 +341,18 @@ function onSlotSave(slot: Partial<TimeSlot>, mode: SaveMode = 'all') {
     const ops: SlotOp[] = [];
 
     if (mode === 'upcoming') {
+        // The edited occurrence and everything after it start from the
+        // beginning of the currently selected week (not the exact weekday
+        // occurrence) — only one occurrence per week ever falls on this
+        // slot's weekday, so no occurrence can land between the two dates.
+        const from = dateStr(weekStart(filterDate.value ?? new Date()));
+        const until = slot.valid_until ?? original.valid_until;
         if (!hasBefore) {
             // Editing from the very first week == editing the whole range
-            ops.push({ action: 'update', slot: { id: original.id, ...edited, valid_from: original.valid_from, valid_until: original.valid_until } });
+            ops.push({ action: 'update', slot: { id: original.id, ...edited, valid_from: from, valid_until: until } });
         } else {
             ops.push({ action: 'update', slot: { id: original.id, ...head, valid_from: original.valid_from, valid_until: dateStr(before) } });
-            ops.push({ action: 'create', slot: { ...edited, valid_from: dateStr(occ), valid_until: original.valid_until } });
+            ops.push({ action: 'create', slot: { ...edited, valid_from: from, valid_until: until } });
         }
     } else { // single
         if (!hasBefore && !hasAfter) {

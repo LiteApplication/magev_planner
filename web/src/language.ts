@@ -262,6 +262,7 @@ const messages = {
         slot_drag_hint:
           "Click and drag to create a slot · Double-click to edit",
         slot_filter_date: "Filter by date",
+        slot_edit_scope: "Apply changes to",
         slot_max_volunteers: "Max volunteers",
         slot_valid_from: "Valid from",
         slot_valid_until: "Valid until",
@@ -828,6 +829,7 @@ const messages = {
         slot_drag_hint:
           "Cliquez et faites glisser pour créer · Double-clic pour modifier",
         slot_filter_date: "Filtrer par date",
+        slot_edit_scope: "Appliquer les changements à",
         slot_max_volunteers: "Bénévoles max",
         slot_valid_from: "Valide à partir du",
         slot_valid_until: "Valide jusqu'au",

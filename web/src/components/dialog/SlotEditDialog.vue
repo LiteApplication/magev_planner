@@ -2,6 +2,11 @@
     <Dialog v-model:visible="visible" modal :header="editingSlot?.id ? $t('message.edit') : $t('message.add')"
         :style="{ width: '28rem' }" :closable="true">
         <div class="flex flex-col gap-4 pt-2">
+            <IftaLabel v-if="editingSlot?.id">
+                <Select id="slot-mode" v-model="saveMode" :options="saveModeOptions"
+                    optionLabel="label" optionValue="value" fluid />
+                <label for="slot-mode">{{ $t('admin.shop.slot_edit_scope') }}</label>
+            </IftaLabel>
             <div class="flex gap-4">
                 <IftaLabel class="flex-1">
                     <Select id="slot-day" v-model="form.day"
@@ -24,8 +29,8 @@
                 <InputNumber id="slot-max" v-model="form.max_volunteers" :min="1" fluid />
                 <label for="slot-max">{{ $t('admin.shop.slot_max_volunteers') }}</label>
             </IftaLabel>
-            <div class="flex gap-4">
-                <IftaLabel class="flex-1">
+            <div v-if="saveMode !== 'single'" class="flex gap-4">
+                <IftaLabel v-if="saveMode === 'all'" class="flex-1">
                     <DatePicker id="slot-from" v-model="form.valid_from_date" date-format="yy-mm-dd" fluid />
                     <label for="slot-from">{{ $t('admin.shop.slot_valid_from') }}</label>
                 </IftaLabel>
@@ -41,9 +46,7 @@
                 <Button v-if="editingSlot?.id" :label="$t('message.delete')" severity="danger" text @click="onDelete" />
                 <div class="flex gap-2 ml-auto">
                     <Button :label="$t('message.cancel')" text @click="visible = false" />
-                    <SplitButton v-if="editingSlot?.id" :label="$t('admin.shop.slot_save_all')" :model="saveMenuItems"
-                        @click="onSave('all')" />
-                    <Button v-else :label="$t('message.save')" @click="onSave('all')" />
+                    <Button :label="$t('message.save')" @click="onSave(saveMode)" />
                 </div>
             </div>
         </template>
@@ -56,7 +59,6 @@ import type { TimeSlot, SaveMode } from '@/api/types';
 import { useI18n } from 'vue-i18n';
 import Dialog from 'primevue/dialog';
 import Button from 'primevue/button';
-import SplitButton from 'primevue/splitbutton';
 import InputNumber from 'primevue/inputnumber';
 import InputMask from 'primevue/inputmask';
 import Select from 'primevue/select';
@@ -78,9 +80,11 @@ const visible = defineModel<boolean>('visible', { default: false });
 const { t } = useI18n();
 const error = ref<string | null>(null);
 
-const saveMenuItems = computed(() => [
-    { label: t('admin.shop.slot_save_single'), command: () => onSave('single') },
-    { label: t('admin.shop.slot_save_upcoming'), command: () => onSave('upcoming') },
+const saveMode = ref<SaveMode>('all');
+const saveModeOptions = computed(() => [
+    { label: t('admin.shop.slot_save_all'), value: 'all' },
+    { label: t('admin.shop.slot_save_upcoming'), value: 'upcoming' },
+    { label: t('admin.shop.slot_save_single'), value: 'single' },
 ]);
 
 const form = ref({
@@ -102,6 +106,7 @@ watch(() => props.editingSlot, (slot) => {
     form.value.valid_until_date = slot.valid_until
         ? new Date(slot.valid_until)
         : new Date(new Date().getFullYear(), 11, 31);
+    saveMode.value = 'all';
     error.value = null;
 }, { immediate: true });
 

@@ -4,6 +4,7 @@ import os
 from sqlmodel import SQLModel, create_engine, Session as _Session
 from sqlalchemy import Engine
 from shared_planner import tz
+from shared_planner.db.migrations import run_migrations
 from shared_planner.db.models import (
     User,
     Shop,
@@ -28,46 +29,6 @@ class Singleton(type):
         return cls._instances[cls]
 
 
-def _run_migrations(engine: Engine) -> None:
-    from sqlalchemy import inspect, text
-    inspector = inspect(engine)
-    tables = inspector.get_table_names()
-    if "mailtemplate" in tables:
-        cols = [c["name"] for c in inspector.get_columns("mailtemplate")]
-        if "subject" not in cols:
-            with engine.connect() as conn:
-                conn.execute(text("ALTER TABLE mailtemplate ADD COLUMN subject VARCHAR NOT NULL DEFAULT ''"))
-                conn.commit()
-    if "reservation" in tables:
-        cols = [c["name"] for c in inspector.get_columns("reservation")]
-        if "time_slot_id" not in cols:
-            with engine.connect() as conn:
-                conn.execute(text("ALTER TABLE reservation ADD COLUMN time_slot_id INTEGER REFERENCES timeslot(id)"))
-                conn.commit()
-    if "user" in tables:
-        cols = [c["name"] for c in inspector.get_columns("user")]
-        if "phone" not in cols:
-            with engine.connect() as conn:
-                conn.execute(text("ALTER TABLE user ADD COLUMN phone VARCHAR NOT NULL DEFAULT ''"))
-                conn.commit()
-        if "first_name" not in cols:
-            with engine.connect() as conn:
-                conn.execute(text("ALTER TABLE user ADD COLUMN first_name VARCHAR NOT NULL DEFAULT ''"))
-                conn.execute(text("ALTER TABLE user ADD COLUMN last_name VARCHAR NOT NULL DEFAULT ''"))
-                if "full_name" in cols:
-                    # Split the legacy full name at the first space: everything
-                    # before it becomes the first name, the rest the last name.
-                    rows = conn.execute(text("SELECT id, full_name FROM user")).fetchall()
-                    for row_id, full_name in rows:
-                        first, _, last = (full_name or "").partition(" ")
-                        conn.execute(
-                            text("UPDATE user SET first_name = :f, last_name = :l WHERE id = :i"),
-                            {"f": first, "l": last, "i": row_id},
-                        )
-                    conn.execute(text("ALTER TABLE user DROP COLUMN full_name"))
-                conn.commit()
-
-
 # Directory holding the SQLite database file. Defaults to the current working
 # directory (so ``./database.db`` for local dev); set DATA_DIR to a mounted
 # folder in production so the database lives on a persistent volume.
@@ -84,7 +45,7 @@ class EngineContainer(metaclass=Singleton):
             f"sqlite:///{DB_PATH}", pool_timeout=10, max_overflow=50, pool_size=5
         )
         SQLModel.metadata.create_all(self.engine)
-        _run_migrations(self.engine)
+        run_migrations(self.engine)
 
 
 @contextmanager
