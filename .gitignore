@@ -5,3 +5,4 @@ uploads/
 .env
 .vscode/
 .env.prod
+.code-graph/

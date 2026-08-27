@@ -28,15 +28,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up QEMU (cross-arch emulation)
+        run: |
+          set -eu
+          if command -v apt-get >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq qemu-user-static binfmt-support
+          fi
+
       - name: Build ${{ matrix.name }} image
         run: |
           set -eu
           IMAGE="${IMAGE_BASE}-${{ matrix.name }}"
-          buildah build \
-            --target "${{ matrix.target }}" \
-            -t "${IMAGE}:latest" \
-            -t "${IMAGE}:${{ github.sha }}" \
-            -f Dockerfile .
+          buildah manifest rm "${IMAGE}:latest" 2>/dev/null || true
+          buildah manifest create "${IMAGE}:latest"
+          for PLATFORM in linux/amd64 linux/arm64; do
+            buildah build \
+              --platform "$PLATFORM" \
+              --manifest "${IMAGE}:latest" \
+              --target "${{ matrix.target }}" \
+              -f Dockerfile .
+          done
 
       - name: Log in and push ${{ matrix.name }} image
         env:
@@ -49,6 +61,6 @@ jobs:
           IMAGE="${IMAGE_BASE}-${{ matrix.name }}"
           # Login and push in the same step so the auth file is guaranteed to be present.
           echo "$REG_TOKEN" | buildah login -u "$REG_USER" --password-stdin "$REGISTRY"
-          buildah push "${IMAGE}:latest"
-          buildah push "${IMAGE}:${{ github.sha }}"
+          buildah manifest push --all "${IMAGE}:latest" "docker://${IMAGE}:latest"
+          buildah manifest push --all "${IMAGE}:latest" "docker://${IMAGE}:${{ github.sha }}"
           buildah logout "$REGISTRY" || true
