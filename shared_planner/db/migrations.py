@@ -102,6 +102,48 @@ def _migrate_passwordreset_created_at(conn: Connection) -> None:
         )
 
 
+def _migrate_reservationslot_backfill(conn: Connection) -> None:
+    """Populate the new reservationslot association table for pre-existing rows.
+
+    Older reservations were never linked to the TimeSlot(s) they were booked
+    against (see reservations.py's ``ReservationSlot`` docstring for why the
+    link is needed). Without this backfill, every reservation created before
+    the table existed would look unbooked once slot capacity/display switches
+    to reading this table, so infer the link from timing: a slot matches a
+    reservation when the slot's day-of-week/validity fits the reservation's
+    local date and the slot's time range sits fully inside the reservation's.
+    """
+    from sqlmodel import Session as _Session, select
+
+    from shared_planner.db.models import Reservation, ReservationSlot, TimeSlot
+    from shared_planner.db.slot_matching import matching_slots
+
+    if "reservationslot" not in _tables(conn):
+        return
+    if "reservation" not in _tables(conn) or "timeslot" not in _tables(conn):
+        return
+
+    with _Session(bind=conn) as session:
+        if session.exec(select(ReservationSlot)).first() is not None:
+            return
+
+        slots_by_shop: dict[int, list[TimeSlot]] = {}
+        for slot in session.exec(select(TimeSlot)).all():
+            slots_by_shop.setdefault(slot.shop_id, []).append(slot)
+
+        seen: set[tuple[int, int]] = set()
+        for reservation in session.exec(select(Reservation)).all():
+            for slot in matching_slots(reservation, slots_by_shop):
+                key = (reservation.id, slot.id)
+                if key in seen:
+                    continue
+                seen.add(key)
+                session.add(
+                    ReservationSlot(reservation_id=reservation.id, time_slot_id=slot.id)
+                )
+        session.flush()
+
+
 # Historical migrations (1-4) were previously run unconditionally on every
 # startup, guarded only by their own column-existence checks. They're
 # reproduced here verbatim as the first entries so that databases which
@@ -114,6 +156,7 @@ MIGRATIONS: list[Migration] = [
     Migration(3, "user.phone", _migrate_user_phone),
     Migration(4, "user.first_name/last_name (split full_name)", _migrate_user_split_full_name),
     Migration(5, "passwordreset.created_at", _migrate_passwordreset_created_at),
+    Migration(6, "reservationslot.backfill", _migrate_reservationslot_backfill),
 ]
 
 

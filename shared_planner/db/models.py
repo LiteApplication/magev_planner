@@ -101,6 +101,23 @@ class OpeningTime(SQLModel, table=True):
     end_time: datetime.time
 
 
+class ReservationSlot(SQLModel, table=True):
+    """Which TimeSlot definition(s) a reservation was actually booked against.
+
+    A reservation may span several contiguous TimeSlot definitions when they're
+    booked together in one action (book_slots merges contiguous runs into a
+    single reservation), hence a many-to-many table rather than a single FK.
+    Each TimeSlot's own booked-count/capacity is scoped to reservations
+    associated with it here, not to any reservation that merely overlaps its
+    time window — two independently-configured, time-overlapping slots (e.g. a
+    shift-handoff slot nested inside two staggered shifts) must not count each
+    other's bookings against their own max_volunteers.
+    """
+
+    reservation_id: int = Field(foreign_key="reservation.id", primary_key=True)
+    time_slot_id: int = Field(foreign_key="timeslot.id", primary_key=True)
+
+
 class TimeSlot(SQLModel, table=True):
     """Recurring time slot for a shop (day-of-week based, with validity period)"""
 
@@ -108,6 +125,9 @@ class TimeSlot(SQLModel, table=True):
     shop_id: int = Field(foreign_key="shop.id")
     shop: Shop = Relationship(back_populates="time_slots")
     reservations: list["Reservation"] = Relationship(back_populates="time_slot")
+    booked_by: list["Reservation"] = Relationship(
+        back_populates="booked_slots", link_model=ReservationSlot
+    )
 
     day: int  # 0=Monday … 6=Sunday
     start_time: datetime.time
@@ -127,6 +147,9 @@ class Reservation(SQLModel, table=True):
     shop: Shop = Relationship(back_populates="reservations")
     time_slot_id: int | None = Field(default=None, foreign_key="timeslot.id")
     time_slot: TimeSlot | None = Relationship(back_populates="reservations")
+    booked_slots: list["TimeSlot"] = Relationship(
+        back_populates="booked_by", link_model=ReservationSlot
+    )
     start_time: datetime.datetime
     end_time: datetime.datetime
     validated: bool = False

@@ -11,9 +11,11 @@ from shared_planner.db.models import (
     OpeningTime,
     TimeSlot,
     Reservation,
+    ReservationSlot,
     Token,
     Notification,
 )
+from shared_planner.db.slot_matching import matching_slots
 
 
 from contextlib import contextmanager
@@ -150,8 +152,15 @@ def load_dummies():
             session.add(OpeningTime(**opening_time))
         for time_slot in time_slots:
             session.add(time_slot)
+        session.flush()
+        slots_by_shop: dict[int, list[TimeSlot]] = {}
+        for slot in time_slots:
+            slots_by_shop.setdefault(slot.shop_id, []).append(slot)
         for reservation in reservations:
-            session.add(Reservation(**reservation))
+            r = Reservation(**reservation)
+            session.add(r)
+            session.flush()
+            r.booked_slots = matching_slots(r, slots_by_shop)
         for token in tokens:
             session.add(Token(**token))
 

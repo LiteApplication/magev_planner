@@ -9,7 +9,14 @@ from sqlmodel import select
 from shared_planner.api.auth import CurrentAdmin, CurrentUser, CurrentToken
 from shared_planner.api.shops import ShopWithoutTimeRanges
 from shared_planner.api.slots import TimeSlotOut
-from shared_planner.db.models import Reservation, Shop, TimeSlot, User, Token, Notification
+from shared_planner.db.models import (
+    Reservation,
+    Shop,
+    TimeSlot,
+    User,
+    Token,
+    Notification,
+)
 from shared_planner.db.session import SessionLock
 from shared_planner.db.settings import get
 from shared_planner.week import monday_str
@@ -18,33 +25,18 @@ from shared_planner import tz
 router = APIRouter(prefix="/res", tags=["reservations"])
 
 
-def _peak_overlap(
-    intervals: list[tuple[datetime.datetime, datetime.datetime]],
-    window_start: datetime.datetime,
-    window_end: datetime.datetime,
-) -> int:
-    """Max number of intervals simultaneously active inside [window_start, window_end).
+def _booked_into(reservations: list[Reservation], slot_id: int) -> list[Reservation]:
+    """Reservations actually booked against ``slot_id``.
 
-    Two intervals that only touch at a boundary (one ends exactly when the other
-    starts) are not counted as overlapping, so a slot straddling the handoff
-    between two back-to-back reservations doesn't look over-occupied.
+    Filters by the reservation<->TimeSlot link rather than by raw time overlap:
+    two independently-configured slots can overlap in time by design (e.g. a
+    shift-handoff slot nested inside two staggered shifts), and each slot's own
+    capacity must only count the people actually booked into it, not everyone
+    whose reservation happens to touch its time window.
     """
-    events: list[tuple[datetime.datetime, int]] = []
-    for start, end in intervals:
-        clipped_start = max(start, window_start)
-        clipped_end = min(end, window_end)
-        if clipped_start >= clipped_end:
-            continue
-        events.append((clipped_start, 1))
-        events.append((clipped_end, -1))
-    events.sort()
-
-    count = 0
-    peak = 0
-    for _, delta in events:
-        count += delta
-        peak = max(peak, count)
-    return peak
+    return [
+        r for r in reservations if any(s.id == slot_id for s in r.booked_slots)
+    ]
 
 
 class ReservedTimeRange(BaseModel):
@@ -190,17 +182,16 @@ def get_planning(
                     datetime.datetime.combine(day_date, slot.end_time)
                 )
 
-                slot_reservations = [
-                    r
-                    for r in week_reservations
-                    if (r.start_time < slot_end and r.end_time > slot_start)
-                ]
-
-                booked_count = _peak_overlap(
-                    [(r.start_time, r.end_time) for r in slot_reservations],
-                    slot_start,
-                    slot_end,
+                slot_reservations = _booked_into(
+                    [
+                        r
+                        for r in week_reservations
+                        if (r.start_time < slot_end and r.end_time > slot_start)
+                    ],
+                    slot.id,
                 )
+
+                booked_count = len(slot_reservations)
                 my_res = next(
                     (r for r in slot_reservations if r.user_id == user.id), None
                 )
@@ -265,6 +256,7 @@ def get_slot_bookings(shop_id: int, date: str, slot_id: int) -> list[SlotBooking
                 Reservation.end_time > slot_start,
             )
         ).all()
+        reservations = _booked_into(reservations, slot_id)
 
         result = [
             SlotBooking(
@@ -318,11 +310,14 @@ def get_day_bookings(shop_id: int, date: str) -> list[DaySlot]:
             slot_end = tz.local_to_utc(
                 datetime.datetime.combine(day_date, slot.end_time)
             )
-            slot_reservations = [
-                r
-                for r in day_reservations
-                if r.start_time < slot_end and r.end_time > slot_start
-            ]
+            slot_reservations = _booked_into(
+                [
+                    r
+                    for r in day_reservations
+                    if r.start_time < slot_end and r.end_time > slot_start
+                ],
+                slot.id,
+            )
             bookings = [
                 SlotBooking(
                     reservation_id=r.id,
@@ -384,6 +379,7 @@ def assign_slot(shop_id: int, req: AssignSlotRequest) -> ReservedTimeRange:
             start_time=slot_start,
             end_time=slot_end,
             time_slot_id=None,
+            booked_slots=[slot],
         )
         session.add(new_reservation)
 
@@ -484,10 +480,9 @@ def book_slots(
                     status_code=400, detail="error.reservation.already_booked"
                 )
 
-            prospective = [(r.start_time, r.end_time) for r in existing]
-            prospective.append((slot_start, slot_end))
+            booked_into_slot = _booked_into(existing, slot.id)
             if (
-                _peak_overlap(prospective, slot_start, slot_end) > slot.max_volunteers
+                len(booked_into_slot) + 1 > slot.max_volunteers
                 and not user.admin
             ):
                 raise HTTPException(status_code=400, detail="error.reservation.overlap")
@@ -516,6 +511,7 @@ def book_slots(
                 start_time=run_start,
                 end_time=run_end,
                 time_slot_id=None,
+                booked_slots=list(run),
             )
 
             session.add(
