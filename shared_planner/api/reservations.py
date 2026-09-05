@@ -18,6 +18,35 @@ from shared_planner import tz
 router = APIRouter(prefix="/res", tags=["reservations"])
 
 
+def _peak_overlap(
+    intervals: list[tuple[datetime.datetime, datetime.datetime]],
+    window_start: datetime.datetime,
+    window_end: datetime.datetime,
+) -> int:
+    """Max number of intervals simultaneously active inside [window_start, window_end).
+
+    Two intervals that only touch at a boundary (one ends exactly when the other
+    starts) are not counted as overlapping, so a slot straddling the handoff
+    between two back-to-back reservations doesn't look over-occupied.
+    """
+    events: list[tuple[datetime.datetime, int]] = []
+    for start, end in intervals:
+        clipped_start = max(start, window_start)
+        clipped_end = min(end, window_end)
+        if clipped_start >= clipped_end:
+            continue
+        events.append((clipped_start, 1))
+        events.append((clipped_end, -1))
+    events.sort()
+
+    count = 0
+    peak = 0
+    for _, delta in events:
+        count += delta
+        peak = max(peak, count)
+    return peak
+
+
 class ReservedTimeRange(BaseModel):
     """Data model for time range
 
@@ -167,7 +196,11 @@ def get_planning(
                     if (r.start_time < slot_end and r.end_time > slot_start)
                 ]
 
-                booked_count = len(slot_reservations)
+                booked_count = _peak_overlap(
+                    [(r.start_time, r.end_time) for r in slot_reservations],
+                    slot_start,
+                    slot_end,
+                )
                 my_res = next(
                     (r for r in slot_reservations if r.user_id == user.id), None
                 )
@@ -451,7 +484,12 @@ def book_slots(
                     status_code=400, detail="error.reservation.already_booked"
                 )
 
-            if len(existing) >= slot.max_volunteers and not user.admin:
+            prospective = [(r.start_time, r.end_time) for r in existing]
+            prospective.append((slot_start, slot_end))
+            if (
+                _peak_overlap(prospective, slot_start, slot_end) > slot.max_volunteers
+                and not user.admin
+            ):
                 raise HTTPException(status_code=400, detail="error.reservation.overlap")
 
         # Group slots into contiguous runs (each run == one reservation). A new run
