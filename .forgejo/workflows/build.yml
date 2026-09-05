@@ -41,6 +41,7 @@ jobs:
           set -eu
           IMAGE="${IMAGE_BASE}-${{ matrix.name }}"
           buildah manifest rm "${IMAGE}:latest" 2>/dev/null || true
+          buildah rmi "${IMAGE}:latest" 2>/dev/null || true
           buildah manifest create "${IMAGE}:latest"
           for PLATFORM in linux/amd64 linux/arm64; do
             buildah build \
