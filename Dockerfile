@@ -18,7 +18,7 @@ RUN npm run build
 FROM docker.io/library/python:3.12-slim AS backend-base
 
 RUN apt-get update && apt-get install -y --no-install-recommends locales && \
-    localedef -i fr_FR -c -f UTF-8 -A /usr/share/locale/locale.alias fr_FR.UTF-8 && \
+    localedef --no-archive -i fr_FR -c -f UTF-8 -A /usr/share/locale/locale.alias fr_FR.UTF-8 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ENV LANG=fr_FR.UTF-8 \
@@ -26,6 +26,13 @@ ENV LANG=fr_FR.UTF-8 \
     LC_ALL=fr_FR.UTF-8
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# uv is a Rust binary; under QEMU cross-arch emulation its multithreaded
+# downloader/installer intermittently segfaults (known upstream QEMU/Rust
+# bug, unresolved as of uv 0.12). Serializing these operations avoids it.
+ENV UV_CONCURRENT_DOWNLOADS=1 \
+    UV_CONCURRENT_BUILDS=1 \
+    UV_CONCURRENT_INSTALLS=1
 
 WORKDIR /app
 
