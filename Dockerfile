@@ -2,7 +2,13 @@
 FROM docker.io/library/node:22-alpine AS frontend-base
 WORKDIR /app/web
 COPY web/package*.json ./
-RUN npm ci
+# Under QEMU cross-arch emulation, npm ci can deadlock outright (observed:
+# zero CPU, zero open sockets, never recovers) -- same underlying emulation
+# flakiness as the uv segfault below. A timeout + retry breaks the hang.
+RUN for i in 1 2 3; do \
+      timeout 300 npm ci && exit 0; \
+      echo "npm ci attempt $i failed/hung, retrying..." >&2; \
+    done; exit 1
 
 # --- Frontend Development ---
 FROM frontend-base AS frontend-dev
@@ -37,7 +43,13 @@ ENV UV_CONCURRENT_DOWNLOADS=1 \
 WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
+# Even serialized, the QEMU/Rust bug above segfaults uv nondeterministically
+# (confirmed flaky over repeated runs) -- retry rather than fail the build.
+RUN for i in 1 2 3 4 5; do \
+      uv sync --frozen --no-dev --no-install-project && exit 0; \
+      echo "uv sync attempt $i failed, retrying..." >&2; \
+      sleep 3; \
+    done; exit 1
 
 # --- Backend Development ---
 FROM backend-base AS backend-dev
