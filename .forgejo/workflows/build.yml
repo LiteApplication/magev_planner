@@ -1,67 +1,22 @@
-name: Build and push images
+name: Lint
 
 on:
   push:
     branches: [master, main]
-    tags: ["v*"]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  packages: write
-
-env:
-  REGISTRY: forgejo.home.liteapp.fr
-  IMAGE_BASE: forgejo.home.liteapp.fr/${{ github.repository }}
-
 jobs:
-  build:
+  lint-frontend:
     runs-on: host
-    strategy:
-      matrix:
-        include:
-          - name: backend
-            target: production
-          - name: frontend
-            target: frontend-prod
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up QEMU (cross-arch emulation)
+      - name: Lint frontend
         run: |
           set -eu
-          if command -v apt-get >/dev/null; then
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq qemu-user-static binfmt-support
-          fi
-
-      - name: Build ${{ matrix.name }} image
-        run: |
-          set -eu
-          IMAGE="${IMAGE_BASE}-${{ matrix.name }}"
-          buildah manifest rm "${IMAGE}:latest" 2>/dev/null || true
-          buildah rmi "${IMAGE}:latest" 2>/dev/null || true
-          buildah manifest create "${IMAGE}:latest"
-          for PLATFORM in linux/amd64 linux/arm64; do
-            buildah build \
-              --platform "$PLATFORM" \
-              --manifest "${IMAGE}:latest" \
-              --target "${{ matrix.target }}" \
-              -f Dockerfile .
-          done
-
-      - name: Log in and push ${{ matrix.name }} image
-        env:
-          REG_USER: ${{ github.actor }}
-          # A token with write:package scope (the built-in GITHUB_TOKEN can
-          # authenticate but cannot write packages). Stored as a repo secret.
-          REG_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
-        run: |
-          set -eu
-          IMAGE="${IMAGE_BASE}-${{ matrix.name }}"
-          # Login and push in the same step so the auth file is guaranteed to be present.
-          echo "$REG_TOKEN" | buildah login -u "$REG_USER" --password-stdin "$REGISTRY"
-          buildah manifest push --all "${IMAGE}:latest" "docker://${IMAGE}:latest"
-          buildah manifest push --all "${IMAGE}:latest" "docker://${IMAGE}:${{ github.sha }}"
-          buildah logout "$REGISTRY" || true
+          docker run --rm \
+            -v "$PWD/web:/app/web" \
+            -w /app/web \
+            docker.io/library/node:22-alpine \
+            sh -c "npm ci && npm run lint"
