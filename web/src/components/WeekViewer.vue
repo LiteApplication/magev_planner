@@ -35,6 +35,7 @@ const isLoading = defineModel('loading', { type: Boolean, default: false });
 // Multi-slot selection: key = `${slot_id}:${date}`
 const selectedSlots = ref<Set<string>>(new Set());
 const confirmDialogVisible = ref(false);
+const bookLoading = ref(false);
 
 // Admin slot manager: list/contact/remove/add the people booked into a slot.
 const slotManagerVisible = ref(false);
@@ -396,6 +397,8 @@ function handleSingleClick(_day: number, task: Task) {
 }
 
 async function bookSelected() {
+    if (bookLoading.value) return;
+    bookLoading.value = true;
     try {
         const details = selectedSlotDetails.value;
         if (details.length === 0) return;
@@ -411,6 +414,8 @@ async function bookSelected() {
         toast.add({ severity: 'success', summary: t('message.success'), detail: t('message.shops.booked'), life: 4000 });
     } catch (e) {
         handleError(toast, t, 'error.reservation.unknown')(e);
+    } finally {
+        bookLoading.value = false;
     }
 }
 function dayName(date: string): string {
@@ -480,8 +485,8 @@ function dayName(date: string): string {
             </li>
         </ul>
         <div class="flex justify-end gap-2">
-            <Button :label="t('message.cancel')" severity="secondary" outlined @click="confirmDialogVisible = false" />
-            <Button :label="t('message.save')" icon="pi pi-check" @click="bookSelected" />
+            <Button :label="t('message.cancel')" severity="secondary" outlined @click="confirmDialogVisible = false" :disabled="bookLoading" />
+            <Button :label="t('message.save')" icon="pi pi-check" @click="bookSelected" :loading="bookLoading" :disabled="bookLoading" />
         </div>
     </Dialog>
 

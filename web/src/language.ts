@@ -99,6 +99,10 @@ const messages = {
       delete: "Delete",
       search: "Search",
 
+      server_status: {
+        degraded: "The server seems to be having issues at the moment — some actions or information shown here might not work or be up to date.",
+      },
+
       date: "Date",
       time: "Time",
 
@@ -664,6 +668,10 @@ const messages = {
       edit: "Modifier",
       delete: "Supprimer",
       search: "Rechercher",
+
+      server_status: {
+        degraded: "Le serveur semble rencontrer un problème en ce moment — certaines actions ou informations affichées ici peuvent ne pas fonctionner ou ne pas être à jour.",
+      },
 
       date: "Date",
       time: "Heure",

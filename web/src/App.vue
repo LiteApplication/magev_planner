@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
 
-import { defineComponent } from 'vue'
+import { defineComponent, onMounted } from 'vue'
 import Toast from 'primevue/toast';
 import ConfirmDialog from 'primevue/confirmdialog';
+import ServerStatusBar from './components/ServerStatusBar.vue';
+import { startHealthMonitor } from './serverStatus';
+
+onMounted(startHealthMonitor);
 
 </script>
 
@@ -13,12 +17,14 @@ export default defineComponent({
   components: {
     RouterView,
     Toast,
-    ConfirmDialog
+    ConfirmDialog,
+    ServerStatusBar
   }
 })
 </script>
 
 <template>
+  <ServerStatusBar />
   <Toast />
 
   <RouterView />

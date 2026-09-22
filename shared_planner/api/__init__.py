@@ -1,8 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from sqlmodel import select
 
 from shared_planner.logs import setup_logging
+from shared_planner.db.session import SessionLock
+from shared_planner.db.models import Setting
 
 from shared_planner.api.auth import router as auth_router
 from shared_planner.api.users import router as users_router
@@ -41,6 +44,17 @@ app.add_middleware(
 
 @app.get("/health", tags=["Health"])
 async def health_check():
+    """Report app health, including whether the database is actually readable.
+
+    A bind-mounted volume can go missing or become unwritable without the
+    process crashing, so a plain "is the server up" check isn't enough —
+    this does a real read to catch that case too.
+    """
+    try:
+        with SessionLock() as session:
+            session.exec(select(Setting).limit(1)).first()
+    except Exception:
+        raise HTTPException(status_code=503, detail="error.health.db_unavailable")
     return {"status": "healthy"}
 
 app.include_router(auth_router)
