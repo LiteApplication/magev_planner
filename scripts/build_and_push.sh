@@ -14,6 +14,7 @@ cd "$(dirname "$0")/.."
 
 REGISTRY="forgejo.home.liteapp.fr"
 IMAGE_BASE="$REGISTRY/alexis/magev_planner"
+GHCR_IMAGE_BASE="ghcr.io/liteapplication/magev_planner"
 SHA="$(git rev-parse HEAD)"
 PLATFORMS="linux/amd64,linux/arm64"
 BUILDER="magev-planner-builder"
@@ -26,13 +27,16 @@ fi
 build() {
   local name="$1" target="$2"
   local image="${IMAGE_BASE}-${name}"
-  echo "==> Building and pushing ${image} (${PLATFORMS})"
+  local ghcr_image="${GHCR_IMAGE_BASE}-${name}"
+  echo "==> Building and pushing ${image} + ${ghcr_image} (${PLATFORMS})"
   docker buildx build \
     --builder "$BUILDER" \
     --platform "$PLATFORMS" \
     --target "$target" \
     -t "${image}:latest" \
     -t "${image}:${SHA}" \
+    -t "${ghcr_image}:latest" \
+    -t "${ghcr_image}:${SHA}" \
     --provenance=false \
     --sbom=false \
     --push \
@@ -42,4 +46,4 @@ build() {
 build backend production
 build frontend frontend-prod
 
-echo "==> Done. Pushed :latest and :${SHA} for backend + frontend."
+echo "==> Done. Pushed :latest and :${SHA} for backend + frontend to ${REGISTRY} and ghcr.io."

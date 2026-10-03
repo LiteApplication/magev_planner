@@ -11,6 +11,19 @@ services:
     env_file: .env
     restart: unless-stopped
 
+  mailer:
+    build:
+      context: .
+      target: production
+    command: uv run mail_daemon
+    volumes:
+      - ./database.db:/app/database.db
+      - ./uploads:/app/uploads
+    env_file: .env
+    restart: unless-stopped
+    depends_on:
+      - app
+
   nginx:
     build:
       context: .
