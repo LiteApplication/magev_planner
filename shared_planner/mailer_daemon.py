@@ -6,7 +6,6 @@ import socket
 import ssl
 import time
 import threading
-from queue import Queue
 from datetime import datetime
 import locale
 from dotenv import load_dotenv
@@ -64,7 +63,10 @@ SUBJECTS = {
     "notification.admin.new_user": "[ADMIN] Nouvel utilisateur",
 }
 
-mail_queue = Queue()
+# Back-off ceiling (seconds) between retries while SMTP keeps failing.
+MAX_RETRY_DELAY = 300
+# How often (seconds) the daemon logs that it's still alive.
+HEARTBEAT_INTERVAL = 3600
 # Set locale to French
 locale.setlocale(locale.LC_TIME, "fr_FR.UTF-8")
 
@@ -190,20 +192,28 @@ def d(value, format_type="date"):
         return value
 
 
-def send_mail(name: str, email: str, template: str, data: dict):
+def send_mail(
+    name: str, email: str, template: str, data: dict, raise_errors: bool = False
+):
     # Subject and body both fall back to the codebase default when not overridden.
     subject = get_template_subject(template, SUBJECTS.get(template, "Notification"))
     template_content = get_template_markdown(template)
-    send_rendered_mail(name, email, subject, template_content, data)
+    send_rendered_mail(name, email, subject, template_content, data, raise_errors)
 
 
 def send_rendered_mail(
-    name: str, email: str, subject: str, template_content: str, data: dict
+    name: str,
+    email: str,
+    subject: str,
+    template_content: str,
+    data: dict,
+    raise_errors: bool = False,
 ):
     """Substitute ``data`` into the given markdown, wrap it and send the email.
 
     Used both by the mailer daemon (with the stored template) and by the admin
-    preview/test endpoints (with an unsaved draft).
+    preview/test endpoints (with an unsaved draft). SMTP failures are only
+    logged unless ``raise_errors`` is set (the daemon needs them to retry).
     """
     for key, value in data.items():
         if key.startswith("date-"):
@@ -259,10 +269,19 @@ def send_rendered_mail(
             logger.info("Email sent to %s", mask_email(email))
     except Exception as e:
         logger.error("Failed to send email to %s: %s", mask_email(email), e)
+        if raise_errors:
+            raise
 
 
-def queue_mail(name, email, template, data):
-    mail_queue.put((name, email, template, data))
+def _is_transient(error: Exception) -> bool:
+    """Whether a send failure is worth retrying later (server/network trouble),
+    as opposed to one that will fail the same way every time (bad recipient,
+    template that can't render)."""
+    if isinstance(error, smtplib.SMTPRecipientsRefused):
+        return False
+    if isinstance(error, smtplib.SMTPResponseException):
+        return error.smtp_code < 500
+    return isinstance(error, (SMTPConfigurationError, smtplib.SMTPException, OSError))
 
 
 def queue_reminders():
@@ -304,47 +323,47 @@ def queue_reminders():
         session.commit()
 
 
-def queue_notifications():
+def send_notifications() -> bool:
+    """Mail every due notification, oldest first.
+
+    A notification is only marked ``mail_sent`` once its mail actually went out
+    (or failed for good), so nothing is lost when SMTP hiccups or the process
+    restarts. Returns False when a transient failure cut the batch short.
+    """
     with SessionLock() as session:
-        unsent = Notification.find_unsent(session)
-        # Group notifications by user
-        notifications = {}
+        unsent = sorted(Notification.find_unsent(session), key=lambda n: n.id)
         for notification in unsent:
-            if notification.user_id not in notifications:
-                notifications[notification.user_id] = []
-            notifications[notification.user_id].append(notification)
-        for user_id, user_notifications in notifications.items():
-            if user_id is None:
-                continue
-            user = session.get(User, user_id)
-            for notification in user_notifications:
-                data = json.loads(notification.data) if notification.data else {}
-                if notification.route:
-                    data["route"] = notification.route
-                queue_mail(
-                    user.full_name,
-                    user.email,
-                    notification.message,
-                    data,
-                )
-                notification.mail_sent = True
-                session.add(notification)
-            session.commit()
-        admin_mails = notifications.get(None, [])
-        for notification in admin_mails:
+            if notification.user_id is None:
+                recipients = User.get_admins(session)
+            else:
+                recipients = [notification.user] if notification.user else []
             data = json.loads(notification.data) if notification.data else {}
             if notification.route:
                 data["route"] = notification.route
-            for admin in User.get_admins(session):
-                queue_mail(
-                    admin.full_name,
-                    admin.email,
-                    notification.message,
-                    data,
+            try:
+                for user in recipients:
+                    send_mail(
+                        user.full_name,
+                        user.email,
+                        notification.message,
+                        dict(data),
+                        raise_errors=True,
+                    )
+            except Exception as e:
+                if _is_transient(e):
+                    logger.warning(
+                        "Mail for notification %s failed, will retry: %s",
+                        notification.id,
+                        e,
+                    )
+                    return False
+                logger.exception(
+                    "Giving up on mail for notification %s", notification.id
                 )
             notification.mail_sent = True
             session.add(notification)
-        session.commit()
+            session.commit()
+    return True
 
 
 def stop_mailer_daemon():
@@ -354,15 +373,26 @@ def stop_mailer_daemon():
 
 
 def mailer_daemon():
+    retry_delay = 0
+    last_heartbeat = time.monotonic()
     while daemon_running:
-        if not mail_queue.empty():
-            name, email, template, data = mail_queue.get()
-            if data is None:
-                data = {}
-            send_mail(name, email, template, data)
-        time.sleep(get("email_daemon_delay").asInt())
-        queue_reminders()
-        queue_notifications()
+        delay = 1
+        try:
+            queue_reminders()
+            if send_notifications():
+                retry_delay = 0
+            else:
+                retry_delay = min(max(retry_delay * 2, 15), MAX_RETRY_DELAY)
+            delay = get("email_daemon_delay").asInt()
+        except Exception:
+            # An unhandled exception here (e.g. "database is locked" while the
+            # app writes) would otherwise kill the thread permanently, silently
+            # stopping ALL future mail until the process is restarted.
+            logger.exception("Unhandled error in mailer daemon loop, continuing")
+        if time.monotonic() - last_heartbeat >= HEARTBEAT_INTERVAL:
+            logger.info("Mailer daemon alive")
+            last_heartbeat = time.monotonic()
+        time.sleep(max(delay, retry_delay))
 
 
 def start_mailer_daemon():
@@ -383,9 +413,12 @@ def main():
         start_mailer_daemon()
     except SMTPConfigurationError:
         raise SystemExit(1)
-    # Keep the main thread alive
-    while True:
+    # Keep the main thread alive. If the daemon thread ever dies anyway, exit
+    # so the container gets restarted instead of idling with no mailer.
+    while daemon_thread.is_alive():
         time.sleep(1)
+    logger.error("Mailer daemon thread died, exiting")
+    raise SystemExit(1)
 
 
 def serve_mail():
