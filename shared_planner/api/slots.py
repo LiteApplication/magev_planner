@@ -4,8 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from shared_planner.api.auth import CurrentAdmin
-from shared_planner.db.models import TimeSlot, Shop
+from shared_planner.db.models import Notification, TimeSlot, Shop
 from shared_planner.db.session import SessionLock
+from shared_planner.week import monday_str
+from shared_planner import tz
 
 router = APIRouter(prefix="/slots", tags=["slots"])
 
@@ -89,6 +91,23 @@ def update_slot(slot_id: int, slot: TimeSlotIn) -> TimeSlotOut:
             raise HTTPException(status_code=400, detail="error.slot.invalid_time")
         if slot.valid_from > slot.valid_until:
             raise HTTPException(status_code=400, detail="error.slot.invalid_dates")
+        # Reservations are pinned to the slot's day/times at booking. Moving the
+        # slot (or shrinking its validity) under upcoming bookings would detach
+        # them from the planning while they'd still show in the volunteers' own
+        # lists, so refuse and let the admin handle those bookings first.
+        moved = (
+            slot.day != existing.day
+            or slot.start_time != existing.start_time
+            or slot.end_time != existing.end_time
+        )
+        for res in existing.booked_by:
+            if res.end_time <= tz.now():
+                continue
+            res_date = tz.utc_to_local(res.start_time).date()
+            if moved or not (slot.valid_from <= res_date <= slot.valid_until):
+                raise HTTPException(
+                    status_code=400, detail="error.slot.has_reservations"
+                )
         existing.day = slot.day
         existing.start_time = slot.start_time
         existing.end_time = slot.end_time
@@ -108,8 +127,32 @@ def delete_slot(slot_id: int) -> None:
         existing = session.get(TimeSlot, slot_id)
         if existing is None:
             raise HTTPException(status_code=404, detail="error.slot.not_found")
-        # Delete associated reservations first (no ORM cascade since FK is nullable)
-        for res in list(existing.reservations):
+        # Delete associated reservations first (no ORM cascade since FK is
+        # nullable). Bookings are linked through ``booked_by``; ``reservations``
+        # only covers the legacy ``time_slot_id`` FK. Leaving them behind would
+        # orphan them: still listed for the volunteer, invisible in the planning.
+        for res in {r.id: r for r in [*existing.reservations, *existing.booked_by]}.values():
+            # Volunteers didn't ask for this, so always mail them (like a
+            # reassignment), regardless of the self-cancel email setting.
+            if res.end_time > tz.now():
+                session.add(
+                    Notification.create(
+                        res.user,
+                        "notification.reservation_cancelled",
+                        {
+                            "shop": res.shop.name,
+                            "datetime-start_time": res.start_time.strftime(
+                                "%Y-%m-%d %H:%M"
+                            ),
+                            "duration": int(
+                                (res.end_time - res.start_time).total_seconds() // 60
+                            ),
+                            "ics": res.ics_data(cancel=True),
+                        },
+                        route=f"/shops/{res.shop.id}/{monday_str(tz.utc_to_local(res.start_time))}",
+                        mail=True,
+                    )
+                )
             session.delete(res)
         session.delete(existing)
         session.commit()

@@ -16,6 +16,7 @@ that already recorded version N must never see it run again.
 from dataclasses import dataclass
 from typing import Callable
 
+import pytz
 from sqlalchemy import Connection, Engine, inspect, text
 
 from shared_planner import tz
@@ -34,6 +35,26 @@ def _tables(conn: Connection) -> set[str]:
 
 def _columns(conn: Connection, table: str) -> set[str]:
     return {c["name"] for c in inspect(conn).get_columns(table)}
+
+
+def _server_tz(conn: Connection) -> pytz.BaseTzInfo:
+    """The ``server_timezone`` setting, read through the migration's connection.
+
+    ``tz.get_server_tz`` can't be used here: it goes through ``SessionLock``,
+    which re-enters the engine singleton while it's still being built (and
+    running these very migrations), recurses, and silently falls back to UTC.
+    """
+    from shared_planner.db.settings import DEFAULTS
+
+    value = None
+    if "setting" in _tables(conn):
+        value = conn.execute(
+            text("SELECT value FROM setting WHERE key = 'server_timezone'")
+        ).scalar()
+    try:
+        return pytz.timezone(value or DEFAULTS["server_timezone"][0])
+    except Exception:
+        return pytz.utc
 
 
 def _migrate_mailtemplate_subject(conn: Connection) -> None:
@@ -127,19 +148,67 @@ def _migrate_reservationslot_backfill(conn: Connection) -> None:
         if session.exec(select(ReservationSlot)).first() is not None:
             return
 
+        server_tz = _server_tz(conn)
         slots_by_shop: dict[int, list[TimeSlot]] = {}
         for slot in session.exec(select(TimeSlot)).all():
             slots_by_shop.setdefault(slot.shop_id, []).append(slot)
 
         seen: set[tuple[int, int]] = set()
         for reservation in session.exec(select(Reservation)).all():
-            for slot in matching_slots(reservation, slots_by_shop):
+            for slot in matching_slots(reservation, slots_by_shop, server_tz):
                 key = (reservation.id, slot.id)
                 if key in seen:
                     continue
                 seen.add(key)
                 session.add(
                     ReservationSlot(reservation_id=reservation.id, time_slot_id=slot.id)
+                )
+        session.flush()
+
+
+def _migrate_reservationslot_relink(conn: Connection) -> None:
+    """Repair reservation<->slot links left wrong by the first backfill.
+
+    Migration 6 originally matched slots in UTC instead of the server timezone
+    (see ``_server_tz``), so pre-existing reservations ended up either unlinked
+    or linked to a slot shifted by the UTC offset. Either way they no longer
+    showed up in the shop planning while still listed in the user's own
+    reservations. A link is kept only when the slot really sits inside the
+    reservation's local time range; reservations with a bad or missing link are
+    relinked from timing. Links made by the booking endpoints are always
+    consistent, so they're left untouched.
+    """
+    from sqlmodel import Session as _Session, select
+
+    from shared_planner.db.models import Reservation, ReservationSlot, TimeSlot
+    from shared_planner.db.slot_matching import matching_slots
+
+    if not {"reservationslot", "reservation", "timeslot"} <= _tables(conn):
+        return
+
+    with _Session(bind=conn) as session:
+        server_tz = _server_tz(conn)
+        slots_by_shop: dict[int, list[TimeSlot]] = {}
+        for slot in session.exec(select(TimeSlot)).all():
+            slots_by_shop.setdefault(slot.shop_id, []).append(slot)
+
+        links: dict[int, set[int]] = {}
+        for link in session.exec(select(ReservationSlot)).all():
+            links.setdefault(link.reservation_id, set()).add(link.time_slot_id)
+
+        for reservation in session.exec(select(Reservation)).all():
+            expected = {
+                s.id for s in matching_slots(reservation, slots_by_shop, server_tz)
+            }
+            current = links.get(reservation.id, set())
+            if current and current <= expected:
+                continue
+            for slot_id in current - expected:
+                link = session.get(ReservationSlot, (reservation.id, slot_id))
+                session.delete(link)
+            for slot_id in expected - current:
+                session.add(
+                    ReservationSlot(reservation_id=reservation.id, time_slot_id=slot_id)
                 )
         session.flush()
 
@@ -157,6 +226,7 @@ MIGRATIONS: list[Migration] = [
     Migration(4, "user.first_name/last_name (split full_name)", _migrate_user_split_full_name),
     Migration(5, "passwordreset.created_at", _migrate_passwordreset_created_at),
     Migration(6, "reservationslot.backfill", _migrate_reservationslot_backfill),
+    Migration(7, "reservationslot.relink (server timezone)", _migrate_reservationslot_relink),
 ]
 
 

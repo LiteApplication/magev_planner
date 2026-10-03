@@ -514,6 +514,8 @@ const messages = {
         wrong_day: "Slot day does not match the selected date",
         invalid_time: "Start time must be before end time",
         invalid_dates: "Valid from must be before valid until",
+        has_reservations:
+          "Upcoming reservations are booked on this slot: cancel them before changing its day, times or validity",
       },
       user: {
         not_found: "User not found",
@@ -1101,6 +1103,8 @@ const messages = {
           "Le jour du créneau ne correspond pas à la date sélectionnée",
         invalid_time: "L'heure de début doit être avant l'heure de fin",
         invalid_dates: "La date de début doit être avant la date de fin",
+        has_reservations:
+          "Des réservations à venir existent sur ce créneau : annulez-les avant de modifier son jour, ses horaires ou sa période de validité",
       },
       user: {
         not_found: "Utilisateur non trouvé",
