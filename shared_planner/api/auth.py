@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Form, HTTPException
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
 from shared_planner.db.models import (
@@ -20,6 +21,16 @@ from shared_planner.mailer_daemon import send_mail
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 _oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+# Hashed once so that logins for unknown emails cost as much as real ones
+_DUMMY_USER = User(email="")
+_DUMMY_USER.set_password("dummy-password")
+
+
+def clean_name(value: str) -> str:
+    """Keep letters (accents included), spaces, hyphens and apostrophes only"""
+    value = re.sub(r"[^\w\s'’-]|_", "", value)
+    return re.sub(r"\s+", " ", value).strip()
 
 
 class UserResult(BaseModel):
@@ -61,6 +72,7 @@ def CurrentToken(access_token: Annotated[str, Depends(_oauth2_scheme)]) -> Token
 
         if token.is_expired():
             session.delete(token)
+            session.commit()
             raise HTTPException(status_code=401, detail="error.token.expired")
 
         token.renew()
@@ -81,6 +93,7 @@ def CurrentUser(access_token: Annotated[str, Depends(_oauth2_scheme)]) -> User:
 
         if token.is_expired():
             session.delete(token)
+            session.commit()
             raise HTTPException(status_code=401, detail="error.token.expired")
 
         token.renew()
@@ -115,7 +128,8 @@ def login(
         user = session.exec(statement).first()
 
         if user is None:
-            raise HTTPException(status_code=404, detail="error.auth.user_not_found")
+            _DUMMY_USER.check_password(credentials.password)
+            raise HTTPException(status_code=401, detail="error.auth.invalid_password")
         if not user.check_password(credentials.password):
             raise HTTPException(status_code=401, detail="error.auth.invalid_password")
 
@@ -138,15 +152,16 @@ def register(
     enterprise: str = Form(...),
     accepted_terms: bool = Form(default=False),
 ) -> None:
+    email = email.strip().lower()
+
     with SessionLock() as session:
         statement = select(User).where(User.email == email)
         if session.exec(statement).first() is not None:
             raise HTTPException(status_code=409, detail="error.auth.email_exists")
 
         # Sanitize inputs to avoid XSS
-        first_name = re.sub(r"[^\w\s]", "", first_name).strip()
-        last_name = re.sub(r"[^\w\s]", "", last_name).strip()
-        email = email.strip().lower()
+        first_name = clean_name(first_name)
+        last_name = clean_name(last_name)
         phone = re.sub(r"[^\d+()\s.-]", "", phone).strip()
 
         if len(f"{first_name}{last_name}") < 3:
@@ -179,7 +194,11 @@ def register(
         )
         session.add(new_user)
 
-        session.commit()  # Commit to avoid race conditions
+        try:
+            session.commit()  # Commit to avoid race conditions
+        except IntegrityError:
+            session.rollback()
+            raise HTTPException(status_code=409, detail="error.auth.email_exists")
 
         password_token = PasswordReset.create(new_user, session)
         session.add(password_token)

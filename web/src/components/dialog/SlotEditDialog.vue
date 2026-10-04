@@ -64,6 +64,7 @@ import InputMask from 'primevue/inputmask';
 import Select from 'primevue/select';
 import IftaLabel from 'primevue/iftalabel';
 import DatePicker from '@/components/primevue/DatePicker';
+import { parseLocalDate } from '@/utils';
 
 const props = defineProps<{
     editingSlot: Partial<TimeSlot> | null,
@@ -102,9 +103,9 @@ watch(() => props.editingSlot, (slot) => {
     form.value.start_time = slot.start_time ? slot.start_time.slice(0, 5) : '09:00';
     form.value.end_time = slot.end_time ? slot.end_time.slice(0, 5) : '11:00';
     form.value.max_volunteers = slot.max_volunteers ?? 1;
-    form.value.valid_from_date = slot.valid_from ? new Date(slot.valid_from) : new Date();
+    form.value.valid_from_date = slot.valid_from ? parseLocalDate(slot.valid_from) : new Date();
     form.value.valid_until_date = slot.valid_until
-        ? new Date(slot.valid_until)
+        ? parseLocalDate(slot.valid_until)
         : new Date(new Date().getFullYear(), 11, 31);
     saveMode.value = 'all';
     error.value = null;

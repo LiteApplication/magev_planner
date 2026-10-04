@@ -164,6 +164,7 @@ class Reservation(SQLModel, table=True):
             select(Reservation).where(
                 not_(Reservation.reminder_sent),
                 Reservation.start_time < time_before,
+                Reservation.start_time > tz.now(),
             )
         ).all()
 
@@ -173,7 +174,9 @@ class Reservation(SQLModel, table=True):
         return {
             "event_name": "Réservation chez " + self.shop.name,
             "start_time": self.start_time.strftime("%Y-%m-%d %H:%M"),
-            "duration_minutes": (self.end_time - self.start_time).total_seconds() // 60,
+            "duration_minutes": int(
+                (self.end_time - self.start_time).total_seconds() // 60
+            ),
             "description": f"Réservation chez {self.shop.name}\nCliquer pour ouvrir dans Google Maps : {self.shop.maps_link}",
             "location": self.shop.maps_link,
             "organizer": get("mail_from").value,

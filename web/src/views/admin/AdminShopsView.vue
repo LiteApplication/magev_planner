@@ -112,7 +112,7 @@ import TabPanels from 'primevue/tabpanels';
 import TabPanel from 'primevue/tabpanel';
 import DatePicker from '@/components/primevue/DatePicker';
 import SlotPlanner from '@/components/SlotPlanner.vue';
-import { networkDate } from '@/utils';
+import { networkDate, parseLocalDate } from '@/utils';
 import { invalidateCache } from '@/api';
 import { useToast } from 'primevue/usetoast';
 import { useI18n } from 'vue-i18n';
@@ -150,8 +150,8 @@ async function selectShop(shop: Shop) {
             end_time: o.end_time.substring(0, 5),
         }));
         selectedShop.value = detail;
-        startDate.value = new Date(detail.available_from);
-        endDate.value = new Date(detail.available_until);
+        startDate.value = parseLocalDate(detail.available_from);
+        endDate.value = parseLocalDate(detail.available_until);
         activeTab.value = 'details';
         await loadSlots(shop.id);
     } catch (e) {

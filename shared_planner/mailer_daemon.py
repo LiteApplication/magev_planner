@@ -1,7 +1,9 @@
 from email.policy import SMTP
+import html
 import json
 import logging
 import os
+import re
 import socket
 import ssl
 import time
@@ -25,7 +27,7 @@ from shared_planner.db.models import (
 from shared_planner.db.settings import get
 from shared_planner.db.session import SessionLock
 from shared_planner.week import monday_str
-from shared_planner.ics import create_ics
+from shared_planner.ics import create_ics, ics_method
 from shared_planner import tz
 from shared_planner.logs import setup_logging
 from shared_planner.mail_render import (
@@ -67,8 +69,14 @@ SUBJECTS = {
 MAX_RETRY_DELAY = 300
 # How often (seconds) the daemon logs that it's still alive.
 HEARTBEAT_INTERVAL = 3600
-# Set locale to French
-locale.setlocale(locale.LC_TIME, "fr_FR.UTF-8")
+# Placeholders whose values are markdown/URLs on purpose, so never HTML-escaped.
+RAW_KEYS = {"enterprise_message", "maps_link", "route", "token"}
+_PLACEHOLDER_RE = re.compile(r"\{([\w.-]+)\}")
+# Set locale to French (missing on some dev machines)
+try:
+    locale.setlocale(locale.LC_TIME, "fr_FR.UTF-8")
+except locale.Error:
+    logger.warning("fr_FR.UTF-8 locale not available, dates will not be in French")
 
 
 def mask_email(email: str) -> str:
@@ -192,6 +200,38 @@ def d(value, format_type="date"):
         return value
 
 
+def fill_placeholders(template_content: str, data: dict) -> str:
+    """Substitute ``data`` into ``{key}`` placeholders in a single pass.
+
+    Single pass so a value containing ``{token}`` is never expanded again.
+    Values are HTML-escaped unless the key is in ``RAW_KEYS``; unknown
+    placeholders (e.g. ``{base_domain}``) are left for later.
+    """
+    values = {}
+    for key, value in data.items():
+        if key.startswith("date-"):
+            value = d(value)
+        elif key.startswith("time-"):
+            value = d(value, "time")
+        elif key.startswith("datetime-"):
+            value = d(value, "datetime")
+        elif key.startswith("datetime_long-"):
+            value = d(value, "long")
+        elif key.startswith("datetime_short-"):
+            value = d(value, "short")
+        elif key.endswith("duration"):
+            hours, minutes = divmod(int(value), 60)
+            value = (f"{hours}h" if hours > 0 else "") + (
+                f"{minutes}min" if minutes > 0 else ""
+            )
+        value = str(value)
+        values[key] = value if key in RAW_KEYS else html.escape(value)
+
+    return _PLACEHOLDER_RE.sub(
+        lambda m: values.get(m.group(1), m.group(0)), template_content
+    )
+
+
 def send_mail(
     name: str, email: str, template: str, data: dict, raise_errors: bool = False
 ):
@@ -215,24 +255,7 @@ def send_rendered_mail(
     preview/test endpoints (with an unsaved draft). SMTP failures are only
     logged unless ``raise_errors`` is set (the daemon needs them to retry).
     """
-    for key, value in data.items():
-        if key.startswith("date-"):
-            value = d(value)
-        elif key.startswith("time-"):
-            value = d(value, "time")
-        elif key.startswith("datetime-"):
-            value = d(value, "datetime")
-        elif key.startswith("datetime_long-"):
-            value = d(value, "long")
-        elif key.startswith("datetime_short-"):
-            value = d(value, "short")
-        elif key.endswith("duration"):
-            hours = int(value // 60)
-            minutes = value % 60
-            value = (f"{hours}h" if hours > 0 else "") + (
-                f"{minutes}min" if minutes > 0 else ""
-            )
-        template_content = template_content.replace(f"{{{key}}}", str(value))
+    template_content = fill_placeholders(template_content, data)
 
     # Markdown -> HTML, then wrap in the styled shell. base_domain / admin_mail
     # are substituted last so they fill placeholders in both content and shell.
@@ -249,7 +272,8 @@ def send_rendered_mail(
     # If the data contains an ICS event, create the ICS file and attach it to the email
     if "ics" in data:
         ics_content = create_ics(**data["ics"])
-        ics = MIMEText(ics_content, "calendar; method=REQUEST")
+        method = ics_method(data["ics"].get("cancel", False), data["ics"].get("update", False))
+        ics = MIMEText(ics_content, f"calendar; method={method}")
         ics.add_header("Content-Disposition", "attachment; filename=invitation.ics")
         msg.attach(ics)
 
@@ -302,10 +326,10 @@ def queue_reminders():
                         "datetime-start_time": reservation.start_time.strftime(
                             "%Y-%m-%d %H:%M"
                         ),
-                        "duration": (
-                            reservation.end_time - reservation.start_time
-                        ).total_seconds()
-                        // 60,
+                        "duration": int(
+                            (reservation.end_time - reservation.start_time).total_seconds()
+                            // 60
+                        ),
                         "shop": reservation.shop.name,
                         "maps_link": reservation.shop.maps_link,
                         "enterprise_message": enterprise.reminder_message
@@ -441,8 +465,7 @@ def serve_mail():
             self.send_header("Content-type", "text/html")
             self.end_headers()
             template_content = get_template_markdown(template)
-            for key, value in data.items():
-                template_content = template_content.replace(f"{{{key}}}", str(value))
+            template_content = fill_placeholders(template_content, data)
             template_content = wrap_in_shell(markdown_to_html(template_content))
             template_content = template_content.replace(
                 "{base_domain}", get("base_domain").value

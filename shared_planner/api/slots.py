@@ -21,6 +21,13 @@ class TimeSlotIn(BaseModel):
     valid_until: datetime.date
 
 
+def _check_slot_values(slot: TimeSlotIn) -> None:
+    if not 0 <= slot.day <= 6:
+        raise HTTPException(status_code=400, detail="error.slot.invalid_day")
+    if slot.max_volunteers < 1:
+        raise HTTPException(status_code=400, detail="error.slot.invalid_max_volunteers")
+
+
 class TimeSlotOut(BaseModel):
     id: int
     shop_id: int
@@ -65,6 +72,7 @@ def create_slot(shop_id: int, slot: TimeSlotIn) -> TimeSlotOut:
             raise HTTPException(status_code=400, detail="error.slot.invalid_time")
         if slot.valid_from > slot.valid_until:
             raise HTTPException(status_code=400, detail="error.slot.invalid_dates")
+        _check_slot_values(slot)
         new_slot = TimeSlot(
             shop_id=shop_id,
             day=slot.day,
@@ -194,6 +202,7 @@ def update_slot(slot_id: int, slot: TimeSlotIn) -> TimeSlotOut:
             raise HTTPException(status_code=400, detail="error.slot.invalid_time")
         if slot.valid_from > slot.valid_until:
             raise HTTPException(status_code=400, detail="error.slot.invalid_dates")
+        _check_slot_values(slot)
         day_shift = datetime.timedelta(days=slot.day - existing.day)
         upcoming = [r for r in existing.booked_by if r.end_time > tz.now()]
         existing.day = slot.day

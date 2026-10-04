@@ -1,5 +1,7 @@
 import datetime
 
+import pytz
+
 from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy import delete, select
 from sqlmodel import or_
@@ -7,10 +9,32 @@ from sqlmodel import or_
 from shared_planner.api.auth import CurrentAdmin, CurrentUser
 from shared_planner.db.models import Notification, PasswordReset, User, Token, Setting
 from shared_planner.db.session import SessionLock
-from shared_planner.db.settings import get as get_setting
+from shared_planner.db.settings import DEFAULTS, get as get_setting
 from shared_planner import tz
 
 router = APIRouter(prefix="/settings", tags=["settings"])
+
+
+def _validate_setting_value(name: str, value: str) -> None:
+    """Reject values that would break readers of the setting (e.g. every request)."""
+    if name not in DEFAULTS:
+        return
+    default = DEFAULTS[name][0]
+    valid = True
+    if isinstance(default, bool):
+        valid = value in ("True", "False", "0", "1")
+    elif isinstance(default, int):
+        try:
+            int(value)
+        except ValueError:
+            valid = False
+    elif name == "server_timezone":
+        try:
+            pytz.timezone(value)
+        except (pytz.UnknownTimeZoneError, ValueError, KeyError):
+            valid = False
+    if not valid:
+        raise HTTPException(400, "error.admin.invalid_setting_value")
 
 
 @router.patch("/s/{name}", dependencies=[Depends(CurrentAdmin)])
@@ -20,6 +44,7 @@ def patch(name: str, value: str = Body(...)) -> Setting:
         if setting is None:
             raise HTTPException(404, "error.admin.setting_not_found")
 
+        _validate_setting_value(name, value)
         setting.value = value
         session.add(setting)
         session.commit()

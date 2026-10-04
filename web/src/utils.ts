@@ -54,7 +54,7 @@ function getDateOfWeek(y: number, w: number) {
 
 
 function getDateOfWeekDay(monday: Date | string, d: number) { // monday is a Date object or a string in the format 'yyyy-mm-dd'
-    const date = new Date(monday);
+    const date = parseLocalDate(monday);
     date.setDate(date.getDate() + d);
     return date;
 }
@@ -80,11 +80,7 @@ function networkDate(date: Date) {
     if (!date) {
         date = new Date(0);
     }
-    // get local timezone offset
-    const offset = date.getTimezoneOffset();
-    date.setMinutes(date.getMinutes() - offset);
-
-    return date.toISOString().slice(0, 10);
+    return formatLocalYMD(date);
 }
 
 function date_start_end(start: string, duration_minutes: number, locale: string): { date: string, start: string, end: string } {
@@ -107,13 +103,13 @@ function validateDates(shopData: ShopWithOpenRange | Shop | null | undefined, st
         return false;
     }
 
-    monday = new Date(monday);
+    monday = parseLocalDate(monday);
 
 
     // Do not check the day if it is set to -1 or if the shop's data does not contain open_ranges
     if (day !== -1 && ("open_ranges" in shopData)) {
-        const shopStart = (new Date(shopData.available_from)).getTime();
-        const shopEnd = (new Date(shopData.available_until)).getTime();
+        const shopStart = parseLocalDate(shopData.available_from).getTime();
+        const shopEnd = parseLocalDate(shopData.available_until).getTime();
 
         // Check that the start date is inside an open range
         const open_ranges = shopData?.open_ranges.filter(
@@ -167,7 +163,7 @@ function validateDates(shopData: ShopWithOpenRange | Shop | null | undefined, st
 }
 
 function formatDate(date: string, locale: string): string {
-    const d = new Date(date);
+    const d = parseLocalDate(date);
     const options: Intl.DateTimeFormatOptions = {
         weekday: 'long',
         year: 'numeric',
@@ -190,15 +186,28 @@ function minDate(date1: Date, date2: Date): Date {
 
 function getMonday(d: Date | string): string {
     // The week starts on Monday
-    d = new Date(d);
+    d = parseLocalDate(d);
     const day = d.getDay();
     const diff = d.getDate() - day + (day == 0 ? -6 : 1); // adjust when day is sunday
     // Add the difference to the date
     d.setDate(diff);
-    // Cancel out the timezone offset to get the correct format when slicing
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    // Format the day to yyyy-mm-dd
-    return d.toISOString().slice(0, 10);
+    return formatLocalYMD(d);
+}
+
+// Format a Date as yyyy-mm-dd using its local calendar fields (no timezone shifting).
+function formatLocalYMD(d: Date): string {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// A plain "YYYY-MM-DD" string is a calendar date: return local midnight instead of
+// the UTC midnight that `new Date("YYYY-MM-DD")` gives. Anything else behaves like new Date().
+// Always returns a new Date.
+function parseLocalDate(value: string | Date): Date {
+    if (typeof value === 'string') {
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+        if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    }
+    return new Date(value);
 }
 
 // Server timestamps (e.g. notification.date) are stored as naive UTC and serialized
@@ -213,6 +222,8 @@ function parseServerDate(value: string | Date): Date {
 export {
     timeToMinutes,
     parseServerDate,
+    parseLocalDate,
+    formatLocalYMD,
     minutesToTime,
     reformatTime,
     getDateOfWeek,

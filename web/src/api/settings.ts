@@ -1,4 +1,4 @@
-import { api, cachedGet } from ".";
+import { api, cachedGet, invalidateCache } from ".";
 import type { Setting } from "./types";
 
 export default class SettingsApi {
@@ -15,6 +15,7 @@ export default class SettingsApi {
 
     async update(key: string, value: string): Promise<Setting> {
         const result = await api.patch(`/settings/s/${key}`, value);
+        invalidateCache();
         return result.data;
     }
 

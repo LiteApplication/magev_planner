@@ -2,9 +2,16 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
-from shared_planner.api.auth import CurrentAdmin, CurrentToken, CurrentUser, UserResult
+from shared_planner.api.auth import (
+    CurrentAdmin,
+    CurrentToken,
+    CurrentUser,
+    UserResult,
+    clean_name,
+)
 from shared_planner.db.models import PasswordReset, Token, User
 from shared_planner.db.session import SessionLock
 from shared_planner.db.settings import get
@@ -25,12 +32,25 @@ class UserCreate(BaseModel):
     admin: bool = False
 
 
+class UserUpdateMe(BaseModel):
+    """Data model for updating one's own profile (password is optional)"""
+
+    email: str
+    first_name: str = ""
+    last_name: str = ""
+    phone: str = ""
+    password: str = ""
+    group: str = ""
+    admin: bool = False
+
+
 @router.post("/create")
 def create_user(
     user_data: UserCreate,
     admin: Annotated[User, Depends(CurrentAdmin)],
 ) -> UserResult:
     """Create a new user"""
+    user_data.email = user_data.email.strip().lower()
     with SessionLock() as session:
         # Check if the user already exists
         statement = select(User).where(User.email == user_data.email)
@@ -44,7 +64,6 @@ def create_user(
             return UserResult.from_user(user)
 
         # sanitize user input
-        user_data.email = user_data.email.strip()
         user_data.first_name = user_data.first_name.strip()
         user_data.last_name = user_data.last_name.strip()
         user_data.group = user_data.group.strip()
@@ -66,7 +85,7 @@ def request_password_reset(
         raise HTTPException(status_code=400, detail="error.user.email_required")
 
     with SessionLock() as session:
-        statement = select(User).where(User.email == email_address)
+        statement = select(User).where(User.email == email_address.strip().lower())
         user = session.exec(statement).first()
         if user is None:
             return  # Do not raise an error to prevent email enumeration
@@ -102,6 +121,8 @@ def reset_password(
         user = reset.user
         user.set_password(password)
         session.add(user)
+        for old in session.exec(select(Token).where(Token.user_id == user.id)).all():
+            session.delete(old)  # revoke existing sessions
         session.delete(reset)
         session.commit()
     return
@@ -130,14 +151,20 @@ def get_user(
     return UserResult.from_user(user)
 
 
-@router.delete("/delete/{user_id}", dependencies=[Depends(CurrentAdmin)])
-def delete_user(user_id: int) -> UserResult:
+@router.delete("/delete/{user_id}")
+def delete_user(user_id: int, exec_user: User = Depends(CurrentAdmin)) -> UserResult:
     """Delete a specific user"""
+    if user_id == exec_user.id:
+        raise HTTPException(status_code=400, detail="error.user.cant_delete_self")
     with SessionLock() as session:
         statement = select(User).where(User.id == user_id)
         user = session.exec(statement).first()
         if user is None:
             raise HTTPException(status_code=404, detail="error.user.not_found")
+        for reset in session.exec(
+            select(PasswordReset).where(PasswordReset.user_id == user.id)
+        ).all():
+            session.delete(reset)
         session.delete(user)
         session.commit()
         result = UserResult.from_user(user)
@@ -159,15 +186,25 @@ def update_user(
                 raise HTTPException(
                     status_code=400, detail="error.user.cant_set_self_admin"
                 )
+        email = user_data.email.strip().lower()
+        other = session.exec(
+            select(User).where(User.email == email, User.id != user.id)
+        ).first()
+        if other is not None:
+            raise HTTPException(status_code=409, detail="error.user.already_exists")
         user.admin = user_data.admin
-        user.first_name = user_data.first_name
-        user.last_name = user_data.last_name
-        user.email = user_data.email
+        user.first_name = user_data.first_name.strip()
+        user.last_name = user_data.last_name.strip()
+        user.email = email
         user.phone = user_data.phone
-        user.group = user_data.group
+        user.group = user_data.group.strip()
 
         session.add(user)
-        session.commit()
+        try:
+            session.commit()
+        except IntegrityError:
+            session.rollback()
+            raise HTTPException(status_code=409, detail="error.user.already_exists")
         session.refresh(user)
     return UserResult.from_user(user)
 
@@ -175,7 +212,7 @@ def update_user(
 @router.put("/me")
 def update_me(
     current_password: Annotated[str, Body()],
-    user_data: UserCreate,
+    user_data: UserUpdateMe,
     token: Annotated[Token, Depends(CurrentToken)],
 ) -> UserResult:
     """Update the current user"""
@@ -190,12 +227,23 @@ def update_me(
             raise HTTPException(status_code=401, detail="error.auth.invalid_password")
 
         # Check that the email is the same
-        if user.email != user_data.email:
+        if user.email != user_data.email.strip().lower():
             raise HTTPException(status_code=400, detail="error.user.email_not_same")
 
-        user.first_name = user_data.first_name
-        user.last_name = user_data.last_name
-        user.set_password(user_data.password)
+        if user_data.password and len(user_data.password) < 8:
+            raise HTTPException(status_code=400, detail="error.auth.password_too_short")
+
+        if "first_name" in user_data.model_fields_set:
+            user.first_name = clean_name(user_data.first_name)
+        if "last_name" in user_data.model_fields_set:
+            user.last_name = clean_name(user_data.last_name)
+        if user_data.password:
+            user.set_password(user_data.password)
+            # Revoke every other session, keep the current one
+            for old in session.exec(
+                select(Token).where(Token.user_id == user.id, Token.id != token.id)
+            ).all():
+                session.delete(old)
         session.add(user)
         session.commit()
         session.refresh(user)

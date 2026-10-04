@@ -440,6 +440,10 @@ const messages = {
       server: "Something went wrong on the server. ",
       api_key_not_set: "The API key is not set in the server settings.",
       api_key_invalid: "The API key is invalid.",
+      invalid_date: "Invalid date",
+      export: {
+        invalid_params: "Invalid export parameters",
+      },
       document: {
         too_large: "File is too large (max 25 MB).",
         not_found: "Document not found.",
@@ -453,6 +457,7 @@ const messages = {
       admin: {
         required: "Admin role required",
         setting_not_found: "This setting cannot be found",
+        invalid_setting_value: "Invalid value for this setting",
       },
       auth: {
         user_not_found: "User not found",
@@ -482,6 +487,7 @@ const messages = {
         time_range_overlap: "Time range overlaps an existing time range",
         time_range_not_found: "Time range not found",
         id_mismatch: "Shop id mismatch",
+        invalid_day: "Day must be between Monday and Sunday",
         not_loaded: "Something went wrong while loading the shop",
         no_id: "No shop id provided",
         unknown: "An unknown error happened while trying to get the shop data.",
@@ -490,6 +496,8 @@ const messages = {
         overlap: "This slot is full",
         not_found: "Reservation not found",
         cant_cancel: "Not allowed to cancel this reservation",
+        cant_cancel_started:
+          "This reservation has already started and can no longer be cancelled",
         cant_update: "Not allowed to update this reservation",
         cancel_validated: "Cannot cancel a validated reservation",
         outside_open: "The reservation must be within the shop's opening hours",
@@ -514,11 +522,14 @@ const messages = {
         wrong_day: "Slot day does not match the selected date",
         invalid_time: "Start time must be before end time",
         invalid_dates: "Valid from must be before valid until",
+        invalid_day: "Day must be between Monday and Sunday",
+        invalid_max_volunteers: "At least 1 volunteer is required",
       },
       user: {
         not_found: "User not found",
         email_not_same: "Cannot change email",
         cant_set_self_admin: "Cannot change own admin status",
+        cant_delete_self: "You cannot delete your own account",
         already_exists: "User already exists",
         unknown: "An unknown error happened while trying to get the user data.",
       },
@@ -1020,6 +1031,10 @@ const messages = {
       api_key_not_set:
         "La clé API n'est pas définie dans les paramètres du serveur.",
       api_key_invalid: "La clé API est invalide.",
+      invalid_date: "Date invalide",
+      export: {
+        invalid_params: "Paramètres d'export invalides",
+      },
       document: {
         too_large: "Le fichier est trop volumineux (max 25 Mo).",
         not_found: "Document introuvable.",
@@ -1033,6 +1048,7 @@ const messages = {
       admin: {
         required: "Rôle d'administrateur requis",
         setting_not_found: "Ce paramètre est introuvable",
+        invalid_setting_value: "Valeur invalide pour ce paramètre",
       },
       auth: {
         user_not_found: "Utilisateur non trouvé",
@@ -1064,6 +1080,7 @@ const messages = {
           "La plage horaire se chevauche avec une plage horaire existante",
         time_range_not_found: "Plage horaire introuvable",
         id_mismatch: "Id de magasin non conforme",
+        invalid_day: "Le jour doit être compris entre lundi et dimanche",
         not_loaded: "Une erreur est survenue lors du chargement de le magasin",
         no_id: "Aucun id de magasin fourni",
         unknown:
@@ -1073,6 +1090,8 @@ const messages = {
         overlap: "Ce créneau est complet",
         not_found: "Réservation introuvable",
         cant_cancel: "Non autorisé à annuler cette réservation",
+        cant_cancel_started:
+          "Cette réservation a déjà commencé et ne peut plus être annulée",
         cant_update: "Non autorisé à mettre à jour cette réservation",
         cancel_validated: "Impossible d'annuler une réservation validée",
         outside_open:
@@ -1101,6 +1120,8 @@ const messages = {
           "Le jour du créneau ne correspond pas à la date sélectionnée",
         invalid_time: "L'heure de début doit être avant l'heure de fin",
         invalid_dates: "La date de début doit être avant la date de fin",
+        invalid_day: "Le jour doit être compris entre lundi et dimanche",
+        invalid_max_volunteers: "Au moins 1 bénévole est requis",
       },
       user: {
         not_found: "Utilisateur non trouvé",
@@ -1108,6 +1129,7 @@ const messages = {
         cant_set_self_admin:
           "Impossible de modifier votre propre statut d'administrateur",
         already_exists: "L'utilisateur existe déjà",
+        cant_delete_self: "Vous ne pouvez pas supprimer votre propre compte",
         unknown:
           "Une erreur inconnue est survenue lors de la récupération des données de l'utilisateur.",
       },

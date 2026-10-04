@@ -5,7 +5,7 @@ import type { SlotStatus, Shop, SlotBooking, User } from '@/api/types';
 import Select from 'primevue/select';
 import DayTimeline from './DayTimeline.vue';
 import { useI18n } from 'vue-i18n';
-import { timeToMinutes } from '../utils';
+import { getDateOfWeekDay, parseLocalDate, timeToMinutes } from '../utils';
 import { type Task } from '../types';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
@@ -66,7 +66,7 @@ function assignSlotLabel(ss: SlotStatus): string {
 
 const titles = computed<string[]>(
     () => Array.from({ length: 7 }, (_, i) =>
-        d(new Date(props.week).setDate(new Date(props.week).getDate() + i), 'week')
+        d(getDateOfWeekDay(props.week, i), 'week')
     )
 );
 
@@ -419,7 +419,7 @@ async function bookSelected() {
     }
 }
 function dayName(date: string): string {
-    return d(new Date(date), 'week');
+    return d(parseLocalDate(date), 'week');
 }
 </script>
 

@@ -13,8 +13,11 @@ const api: AxiosInstance = axios.create({
 
 api.interceptors.request.use(
     config => {
-        if (localStorage.getItem('access_token') !== null && (new Date(localStorage.getItem('expires_at') || '0') > new Date())) {
-            config.headers['Authorization'] = `Bearer ${localStorage.getItem('access_token')}`;
+        // The server slides expires_at on every request, so the stored value goes stale.
+        // Always send the token and let the server's 401 decide.
+        const token = localStorage.getItem('access_token');
+        if (token !== null) {
+            config.headers['Authorization'] = `Bearer ${token}`;
         }
         return config;
     },
@@ -44,9 +47,6 @@ function saveUserToSession(user: User) {
 
 function loadUserFromSession(): User | null {
     if (localStorage.getItem('access_token') === null) {
-        return null;
-    }
-    if (new Date(localStorage.getItem('expires_at') || '0') < new Date()) {
         return null;
     }
     if (Date.now() - parseInt(sessionStorage.getItem('loginChecked') || '0') > CACHE_TIMEOUT) {

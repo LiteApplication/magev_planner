@@ -9,7 +9,7 @@ import EnsureLoggedIn from '@/components/EnsureLoggedIn.vue';
 import { exampleShopWithOpenRange, type ShopWithOpenRange } from '@/api/types';
 import { shopApi } from '@/main';
 import WeekViewer from '@/components/WeekViewer.vue';
-import { getMonday } from '@/utils';
+import { getMonday, parseLocalDate } from '@/utils';
 import DatePicker from '@/components/primevue/DatePicker';
 import handleError from '@/error_handler';
 import { useToast } from 'primevue/usetoast';
@@ -25,7 +25,13 @@ const weekNumberURL = useRouteParams("week", getMonday(new Date()), { transform:
 
 const isLoading = ref(true);
 
-const datePicked = ref(new Date(weekNumberURL.value));
+function addDays(date: Date, days: number): Date {
+    const result = new Date(date);
+    result.setDate(result.getDate() + days);
+    return result;
+}
+
+const datePicked = ref(parseLocalDate(weekNumberURL.value));
 const shop: Ref<ShopWithOpenRange> = ref(exampleShopWithOpenRange);
 const week = computed(() => getMonday(datePicked.value));
 
@@ -33,8 +39,8 @@ onMounted(() => {
     shopApi.get(shopId.value).then(
         (r) => {
             shop.value = r;
-            if (datePicked.value < new Date(shop.value.available_from)) {
-                datePicked.value = new Date(getMonday(shop.value.available_from));
+            if (datePicked.value < parseLocalDate(shop.value.available_from)) {
+                datePicked.value = parseLocalDate(getMonday(shop.value.available_from));
             }
         }
     ).catch(handleError(toast, $t, "error.shop.unknown")).finally(() => isLoading.value = false);
@@ -51,12 +57,12 @@ watch([shopId, week], () => {
         <template #action>
             <div>
                 <DatePicker v-model="datePicked" showIcon fluid :date-format="$t('message.shops.week_format')" :showOnFocus="false"
-                    inputId="buttondisplay" :min-date="new Date(shop.available_from)" :max-date="new Date(shop.available_until)"
+                    inputId="buttondisplay" :min-date="parseLocalDate(shop.available_from)" :max-date="parseLocalDate(shop.available_until)"
                     :placeholder="$t('message.select_date')" show-week />
                 <div class="flex flex-row justify-between">
-                    <Button icon="pi pi-chevron-left" @click="datePicked = new Date(datePicked.getTime() - 7 * 24 * 60 * 60 * 1000)"
+                    <Button icon="pi pi-chevron-left" @click="datePicked = addDays(datePicked, -7)"
                         severity="secondary" />
-                    <Button icon="pi pi-chevron-right" @click="datePicked = new Date(datePicked.getTime() + 7 * 24 * 60 * 60 * 1000)"
+                    <Button icon="pi pi-chevron-right" @click="datePicked = addDays(datePicked, 7)"
                         severity="secondary" />
                 </div>
             </div>

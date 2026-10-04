@@ -1,5 +1,25 @@
 from datetime import datetime, timedelta, timezone
+from email.utils import parseaddr
 import pytz
+
+
+def ics_method(cancel: bool = False, update: bool = False) -> str:
+    """iCalendar METHOD for an event: CANCEL, REQUEST (update) or PUBLISH."""
+    if cancel:
+        return "CANCEL"
+    return "REQUEST" if update else "PUBLISH"
+
+
+def _escape(text: str) -> str:
+    """Escape an iCalendar TEXT value (RFC 5545 section 3.3.11)."""
+    return (
+        str(text)
+        .replace("\\", "\\\\")
+        .replace(";", "\\;")
+        .replace(",", "\\,")
+        .replace("\r\n", "\n")
+        .replace("\n", "\\n")
+    )
 
 
 def create_ics(
@@ -19,25 +39,15 @@ def create_ics(
     # string is already UTC.
     start_time = datetime.strptime(start_time, "%Y-%m-%d %H:%M")
     start_time = pytz.utc.localize(start_time)
-    # Round that to te nearest 15 minutes
-    start_time = start_time + timedelta(minutes=7.5)
-    start_time -= timedelta(
-        minutes=start_time.minute % 15,
-        seconds=start_time.second,
-        microseconds=start_time.microsecond,
-    )
-
     # Calculate the end time
     end_time = start_time + timedelta(minutes=duration_minutes)
 
     # Format the datetime objects to the iCalendar datetime format
     dt_format = "%Y%m%dT%H%M%SZ"
-    description = description.replace("\n", "\\n")
-    # Parse the organizer
-    organizer_name, organizer_email = organizer.split("<")
-    organizer_email = organizer_email[:-1]
-    organizer_name = organizer_name.strip()
+    # Parse the organizer ("Name <email>" or a bare address)
+    organizer_name, organizer_email = parseaddr(organizer)
     organizer_email = organizer_email.strip().lower()
+    organizer_name = (organizer_name.strip() or organizer_email).replace('"', "")
 
     # Sequence number
     sequence = 0
@@ -47,7 +57,7 @@ def create_ics(
         sequence = 2
 
     # Create the iCalendar content
-    method = "PUBLISH" if (not update and not cancel) else "REQUEST"
+    method = ics_method(cancel, update)
     status = "CANCELLED" if cancel else "CONFIRMED"
     start_time_str = start_time.strftime(dt_format)
     end_time_str = end_time.strftime(dt_format)
@@ -78,10 +88,10 @@ UID:{id}@liteapp.fr
 DTSTAMP:{now_str}
 DTSTART:{start_time_str}
 DTEND:{end_time_str}
-SUMMARY:{event_name}
-DESCRIPTION:{description}
-LOCATION:{location}
-ORGANIZER;CN={organizer_name}:MAILTO:{organizer_email}
+SUMMARY:{_escape(event_name)}
+DESCRIPTION:{_escape(description)}
+LOCATION:{_escape(location)}
+ORGANIZER;CN="{organizer_name}":MAILTO:{organizer_email}
 STATUS:{status}
 SEQUENCE:{sequence}
 END:VEVENT

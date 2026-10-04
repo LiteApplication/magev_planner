@@ -1,4 +1,4 @@
-import { api, cachedGet } from ".";
+import { api, cachedGet, invalidateCache } from ".";
 import { exampleShop, type OpenRange, type Shop, type ShopWithOpenRange } from "./types";
 
 export default class ShopApi {
@@ -17,16 +17,19 @@ export default class ShopApi {
 
     async create(shop: Shop): Promise<ShopWithOpenRange> {
         const result = await api.post("/shops/create", shop);
+        invalidateCache();
         return result.data;
     }
 
     async update(shop: Shop): Promise<ShopWithOpenRange> {
         const result = await api.put("/shops/update", shop);
+        invalidateCache();
         return result.data;
     }
 
     async delete(id: number): Promise<void> {
         const result = await api.delete(`/shops/${id}/delete`);
+        invalidateCache();
         return result.data;
     }
 

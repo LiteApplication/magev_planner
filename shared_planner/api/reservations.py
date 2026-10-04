@@ -1,4 +1,5 @@
 import datetime
+import secrets
 
 from typing import Annotated
 from fastapi import APIRouter, Body, Depends, HTTPException
@@ -23,6 +24,14 @@ from shared_planner.week import monday_str
 from shared_planner import tz
 
 router = APIRouter(prefix="/res", tags=["reservations"])
+
+
+def _parse_date(value: str) -> datetime.datetime:
+    """Parse a ``YYYY-MM-DD`` string, answering 400 instead of 500 when malformed."""
+    try:
+        return datetime.datetime.strptime(value, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="error.invalid_date")
 
 
 def _booked_into(reservations: list[Reservation], slot_id: int) -> list[Reservation]:
@@ -145,7 +154,7 @@ def get_planning(
         if shop is None:
             raise HTTPException(status_code=404, detail="error.shop.not_found")
 
-        week_start = datetime.datetime.strptime(monday, "%Y-%m-%d")
+        week_start = _parse_date(monday)
         if week_start.weekday() != 0:
             raise HTTPException(status_code=400, detail="error.reservation.not_monday")
 
@@ -241,7 +250,7 @@ def get_slot_bookings(shop_id: int, date: str, slot_id: int) -> list[SlotBooking
         if slot is None or slot.shop_id != shop_id:
             raise HTTPException(status_code=404, detail="error.slot.not_found")
 
-        day_date = datetime.datetime.strptime(date, "%Y-%m-%d").date()
+        day_date = _parse_date(date).date()
         slot_start = tz.local_to_utc(
             datetime.datetime.combine(day_date, slot.start_time)
         )
@@ -281,7 +290,7 @@ def get_day_bookings(shop_id: int, date: str) -> list[DaySlot]:
         if shop is None:
             raise HTTPException(status_code=404, detail="error.shop.not_found")
 
-        day_date = datetime.datetime.strptime(date, "%Y-%m-%d").date()
+        day_date = _parse_date(date).date()
         weekday = day_date.weekday()
 
         day_slots = [
@@ -338,6 +347,7 @@ def get_day_bookings(shop_id: int, date: str) -> list[DaySlot]:
 def assign_slot(shop_id: int, req: AssignSlotRequest) -> ReservedTimeRange:
     """Assign a user to a time slot (admin only)."""
     with SessionLock() as session:
+        session.connection().exec_driver_sql("BEGIN IMMEDIATE")
         shop = session.get(Shop, shop_id)
         if shop is None:
             raise HTTPException(status_code=404, detail="error.shop.not_found")
@@ -428,6 +438,9 @@ def book_slots(
     each become their own reservation so the gaps between them stay free.
     """
     with SessionLock() as session:
+        # Take SQLite's write lock up front so the capacity check and the
+        # inserts are atomic across gunicorn workers (committed below).
+        session.connection().exec_driver_sql("BEGIN IMMEDIATE")
         shop = session.get(Shop, shop_id)
         if shop is None:
             raise HTTPException(status_code=404, detail="error.shop.not_found")
@@ -436,7 +449,7 @@ def book_slots(
             raise HTTPException(status_code=400, detail="error.reservation.no_slots")
 
         slots = []
-        for slot_id in req.time_slot_ids:
+        for slot_id in dict.fromkeys(req.time_slot_ids):
             slot = session.get(TimeSlot, slot_id)
             if slot is None or slot.shop_id != shop_id:
                 raise HTTPException(status_code=404, detail="error.slot.not_found")
@@ -448,6 +461,17 @@ def book_slots(
 
         # Sort slots by time to determine overall range
         slots.sort(key=lambda s: s.start_time)
+
+        # Requested slots must not overlap each other (contiguous is fine)
+        latest_end = None
+        for slot in slots:
+            if latest_end is not None and slot.start_time < latest_end:
+                raise HTTPException(
+                    status_code=400, detail="error.reservation.already_booked"
+                )
+            latest_end = (
+                slot.end_time if latest_end is None else max(latest_end, slot.end_time)
+            )
 
         if req.date < tz.utc_to_local(tz.now()).date() and not user.admin:
             raise HTTPException(status_code=400, detail="error.reservation.past_time")
@@ -466,6 +490,11 @@ def book_slots(
             slot_end = tz.local_to_utc(
                 datetime.datetime.combine(req.date, slot.end_time)
             )
+
+            if slot_start <= tz.now() and not user.admin:
+                raise HTTPException(
+                    status_code=400, detail="error.reservation.past_time"
+                )
 
             # Use overlap check for existing reservations
             query = select(Reservation).where(
@@ -583,6 +612,10 @@ def cancel_reservation(
             raise HTTPException(
                 status_code=400, detail="error.reservation.cant_cancel_validated"
             )
+        if reservation.start_time <= tz.now() and not user.admin:
+            raise HTTPException(
+                status_code=400, detail="error.reservation.cant_cancel_started"
+            )
 
         session.add(
             Notification.create(
@@ -612,7 +645,7 @@ def cancel_reservation(
                     None,
                     "notification.admin.reservation_cancelled",
                     {
-                        "user": user.full_name,
+                        "user": reservation.user.full_name,
                         "shop": reservation.shop.name,
                         "datetime-start_time": reservation.start_time.strftime(
                             "%Y-%m-%d %H:%M"
@@ -706,14 +739,14 @@ def search(
         if user_id is not None:
             query = query.where(Reservation.user_id == user_id)
         if day is not None:
-            day_start = datetime.datetime.strptime(day, "%Y-%m-%d")
+            day_start = _parse_date(day)
             day_end = day_start + datetime.timedelta(days=1)
             query = query.where(
                 Reservation.start_time >= tz.local_to_utc(day_start),
                 Reservation.start_time < tz.local_to_utc(day_end),
             )
         if monday is not None:
-            week_start = datetime.datetime.strptime(monday, "%Y-%m-%d")
+            week_start = _parse_date(monday)
             week_end = week_start + datetime.timedelta(days=7)
             query = query.where(
                 Reservation.start_time >= tz.local_to_utc(week_start),
@@ -737,14 +770,34 @@ def reassign_reservation(
         user = session.get(User, user_id)
         if user is None:
             raise HTTPException(status_code=404, detail="error.user.not_found")
+        if reservation.user_id == user.id:
+            return ReservedTimeRange.from_reservation(reservation, user)
+
+        conflicts = session.exec(
+            select(Reservation).where(
+                Reservation.id != reservation.id,
+                Reservation.shop_id == reservation.shop_id,
+                Reservation.user_id == user.id,
+                Reservation.start_time < reservation.end_time,
+                Reservation.end_time > reservation.start_time,
+            )
+        ).all()
+        if conflicts:
+            raise HTTPException(
+                status_code=400, detail="error.reservation.already_booked"
+            )
+
+        old_user = reservation.user
         reservation.user_id = user.id
+        if reservation.start_time > tz.now():
+            reservation.reminder_sent = False
         session.add(reservation)
         session.commit()
         session.refresh(reservation)
 
         session.add(
             Notification.create(
-                user=reservation.user,
+                user=old_user,
                 message="notification.reservation_reassigned_old",
                 data={
                     "shop": reservation.shop.name,
@@ -757,6 +810,7 @@ def reassign_reservation(
                     ),
                     "ics": reservation.ics_data(cancel=True),
                 },
+                route=f"/shops/{reservation.shop.id}/{monday_str(tz.utc_to_local(reservation.start_time))}",
                 mail=True,
             )
         )
@@ -790,7 +844,9 @@ def get_all_data(api_key: str) -> str:
     """Export all reservations as CSV"""
     if get("api_key").value == "":
         raise HTTPException(status_code=403, detail="error.api_key_not_set")
-    if api_key != get("api_key").value:
+    if not secrets.compare_digest(
+        api_key.encode(), get("api_key").value.encode()
+    ):
         raise HTTPException(status_code=403, detail="error.api_key_invalid")
 
     import csv

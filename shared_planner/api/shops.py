@@ -77,6 +77,21 @@ class TimeRange(BaseModel):
     end_time: datetime.time
 
 
+def _check_time_range(
+    new: TimeRange, existing: list[OpeningTime], exclude_id: int | None = None
+) -> None:
+    """Validate day and bounds, and that ``new`` overlaps no other range that day."""
+    if not 0 <= new.day <= 6:
+        raise HTTPException(status_code=400, detail="error.shop.invalid_day")
+    if new.start_time >= new.end_time:
+        raise HTTPException(status_code=400, detail="error.shop.negative_time_range")
+    for ex in existing:
+        if ex.id == exclude_id or ex.day != new.day:
+            continue
+        if ex.start_time < new.end_time and new.start_time < ex.end_time:
+            raise HTTPException(status_code=400, detail="error.shop.time_range_overlap")
+
+
 @router.get("/{shop_id}/get", dependencies=[Depends(CurrentToken)])
 def get_shop(shop_id: int) -> ShopWithTimeRanges:
     """Get a specific shop"""
@@ -154,25 +169,7 @@ def create_time_range(shop_id: int, time_range: TimeRange) -> ShopWithTimeRanges
 
         time_range.id = None
 
-        # Check for overlapping time ranges
-        for existing_time_range in shop.open_ranges:
-            if existing_time_range.day == time_range.day:
-                if (
-                    existing_time_range.start_time <= time_range.start_time
-                    and existing_time_range.end_time > time_range.start_time
-                ) or (
-                    existing_time_range.start_time < time_range.end_time
-                    and existing_time_range.end_time >= time_range.end_time
-                ):
-                    raise HTTPException(
-                        status_code=400,
-                        detail="error.shop.time_range_overlap",
-                    )
-        # Check that the time range is longer than 0
-        if time_range.start_time >= time_range.end_time:
-            raise HTTPException(
-                status_code=400, detail="error.shop.negative_time_range"
-            )
+        _check_time_range(time_range, shop.open_ranges)
 
         new_time_range = OpeningTime(shop_id=shop.id, **time_range.model_dump())
         session.add(new_time_range)
@@ -209,6 +206,8 @@ def update_time_range(time_range_id: int, new_tr: TimeRange) -> ShopWithTimeRang
             raise HTTPException(
                 status_code=404, detail="error.shop.time_range_not_found"
             )
+
+        _check_time_range(new_tr, time_range.shop.open_ranges, exclude_id=time_range.id)
 
         time_range.day = new_tr.day
         time_range.start_time = new_tr.start_time

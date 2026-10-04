@@ -14,6 +14,15 @@ from shared_planner.db.settings import get
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
+# Types safe to render inline on the app origin; everything else is downloaded.
+INLINE_TYPES = {
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/webp",
+    "application/pdf",
+}
+
 UPLOAD_DIR = "uploads"
 MAX_SIZE = 25 * 1024 * 1024  # 25 MB
 
@@ -100,11 +109,18 @@ def get_document_raw(stored_name: str):
         content_type = doc.content_type
     if not os.path.isfile(path):
         raise HTTPException(status_code=404, detail="error.document.not_found")
+    base_type = content_type.split(";")[0].strip().lower()
+    inline = base_type in INLINE_TYPES
+    headers = {"X-Content-Type-Options": "nosniff"}
+    # The sandbox CSP can block Chrome's built-in PDF viewer, so skip it there.
+    if base_type != "application/pdf":
+        headers["Content-Security-Policy"] = "sandbox"
     return FileResponse(
         path,
-        media_type=content_type,
+        media_type=base_type if inline else "application/octet-stream",
         filename=filename,
-        content_disposition_type="inline",
+        content_disposition_type="inline" if inline else "attachment",
+        headers=headers,
     )
 
 
