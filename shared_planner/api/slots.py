@@ -104,7 +104,11 @@ def _route(res: Reservation) -> str:
 
 
 def _reschedule(
-    session, res: Reservation, slot: TimeSlot, new_date: datetime.date | None
+    session,
+    res: Reservation,
+    slot: TimeSlot,
+    new_date: datetime.date | None,
+    mail: bool = True,
 ) -> None:
     """Re-derive ``res`` after an admin changed (or deleted) one of its slots.
 
@@ -114,7 +118,8 @@ def _reschedule(
     from its remaining slots: it keeps the first contiguous run, any further run
     (a merged booking split by the change) becomes its own reservation, and it's
     deleted when no slot is left. The volunteer didn't ask for any of this, so
-    they're always mailed, regardless of the self-service email settings.
+    they're mailed regardless of the self-service email settings, unless the
+    caller passes ``mail=False``/a setting-driven value (volunteer-initiated).
     """
     res_date = tz.utc_to_local(res.start_time).date()
     prev_start, prev_end = res.start_time, res.end_time
@@ -138,7 +143,7 @@ def _reschedule(
                 "notification.reservation_cancelled",
                 _notification_data(res, cancel=True),
                 route=_route(res),
-                mail=True,
+                mail=mail,
             )
         )
         session.delete(res)
@@ -155,7 +160,24 @@ def _reschedule(
     res.booked_slots = run
     res.time_slot_id = None
     session.add(res)
-    if (res.start_time, res.end_time) != (prev_start, prev_end):
+    if others:
+        # Told to the volunteer as one "split in two" mail, not modified + created.
+        start, end = span(*others[0])
+        data = _notification_data(res, update=True)
+        data["datetime-second_start_time"] = start.strftime("%Y-%m-%d %H:%M")
+        data["second_duration"] = int((end - start).total_seconds() // 60)
+        data["datetime-previous_start_time"] = prev_start.strftime("%Y-%m-%d %H:%M")
+        data["previous_duration"] = int((prev_end - prev_start).total_seconds() // 60)
+        session.add(
+            Notification.create(
+                res.user,
+                "notification.reservation_split",
+                data,
+                route=_route(res),
+                mail=mail,
+            )
+        )
+    elif (res.start_time, res.end_time) != (prev_start, prev_end):
         data = _notification_data(res, update=True)
         data["datetime-previous_start_time"] = prev_start.strftime("%Y-%m-%d %H:%M")
         data["previous_duration"] = int((prev_end - prev_start).total_seconds() // 60)
@@ -165,7 +187,7 @@ def _reschedule(
                 "notification.reservation_modified",
                 data,
                 route=_route(res),
-                mail=True,
+                mail=mail,
             )
         )
 
@@ -181,15 +203,6 @@ def _reschedule(
         )
         session.add(split)
         session.flush()
-        session.add(
-            Notification.create(
-                res.user,
-                "notification.reservation_created",
-                _notification_data(split),
-                route=_route(split),
-                mail=True,
-            )
-        )
 
 
 @router.put("/{slot_id}/update", dependencies=[Depends(CurrentAdmin)])

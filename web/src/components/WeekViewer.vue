@@ -285,7 +285,7 @@ function removeBooking(b: SlotBooking) {
         acceptLabel: t('message.reservation.remove'),
         acceptClass: 'p-button-danger',
         accept: () => {
-            reservationApi.cancel(b.reservation_id).then(async () => {
+            reservationApi.cancel(b.reservation_id, slotManagerInfo.value?.slotId).then(async () => {
                 await Promise.all([loadSlotBookings(), fetchPlanning()]);
                 toast.add({ severity: 'success', summary: t('message.success'), detail: t('message.reservation.user_removed'), life: 4000 });
                 if (slotBookings.value.length === 0) slotManagerVisible.value = false;
@@ -370,7 +370,7 @@ function handleSingleClick(_day: number, task: Task) {
             acceptLabel: t('message.reservation.cancel_booking'),
             acceptClass: 'p-button-danger',
             accept: () => {
-                reservationApi.cancel(task.reservation_id!).then(() => {
+                reservationApi.cancel(task.reservation_id!, task.slot_id).then(() => {
                     fetchPlanning();
                 }).catch(handleError(toast, t, 'error.reservation.unknown'));
             },

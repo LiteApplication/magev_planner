@@ -591,6 +591,11 @@ const messages = {
         body: "You have successfully created a new reservation at {shop} on <strong>{datetime-start_time}</strong> for <strong>{duration}</strong>",
         access: "Open timeline",
       },
+      reservation_split: {
+        title: "Reservation split",
+        body: "Your reservation at {shop} on <strong>{datetime-previous_start_time}</strong> for <strong>{previous_duration}</strong> has been split in two: <strong>{datetime-start_time}</strong> for <strong>{duration}</strong> and <strong>{datetime-second_start_time}</strong> for <strong>{second_duration}</strong>",
+        access: "Open timeline",
+      },
       reservation_modified: {
         title: "Reservation modified",
         body: "Your reservation at {shop} on <strong>{datetime-previous_start_time}</strong> for <strong>{previous_duration}</strong> has been modified to <strong>{datetime-start_time}</strong> for <strong>{duration}</strong>",
@@ -1189,6 +1194,11 @@ const messages = {
       reservation_created: {
         title: "Nouvelle réservation",
         body: "Vous avez créé une nouvelle réservation à {shop} le <strong>{datetime-start_time}</strong> pour <strong>{duration}</strong>",
+        access: "Ouvrir la timeline",
+      },
+      reservation_split: {
+        title: "Réservation scindée en deux",
+        body: "Votre réservation à {shop} du <strong>{datetime-previous_start_time}</strong> de <strong>{previous_duration}</strong> a été scindée en deux : le <strong>{datetime-start_time}</strong> de <strong>{duration}</strong> et le <strong>{datetime-second_start_time}</strong> de <strong>{second_duration}</strong>",
         access: "Ouvrir la timeline",
       },
       reservation_modified: {

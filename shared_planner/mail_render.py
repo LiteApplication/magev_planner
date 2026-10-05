@@ -30,6 +30,7 @@ TEMPLATE_NAMES = [
     "notification.reservation_created",
     "notification.reservation_cancelled",
     "notification.reservation_modified",
+    "notification.reservation_split",
     "notification.reservation_reassigned_new",
     "notification.reservation_reassigned_old",
     "notification.admin.new_user",

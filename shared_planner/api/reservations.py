@@ -9,7 +9,7 @@ from sqlmodel import select
 
 from shared_planner.api.auth import CurrentAdmin, CurrentUser, CurrentToken
 from shared_planner.api.shops import ShopWithoutTimeRanges
-from shared_planner.api.slots import TimeSlotOut
+from shared_planner.api.slots import TimeSlotOut, _reschedule
 from shared_planner.db.models import (
     Reservation,
     Shop,
@@ -599,9 +599,15 @@ def book_slots(
 
 @router.delete("/{reservation_id}/cancel")
 def cancel_reservation(
-    reservation_id: int, user: Annotated[User, Depends(CurrentUser)]
+    reservation_id: int,
+    user: Annotated[User, Depends(CurrentUser)],
+    slot_id: int | None = None,
 ) -> None:
-    """Cancel a reservation"""
+    """Cancel a reservation, or only one of its slots when ``slot_id`` is given.
+
+    Removing a slot from a multi-slot reservation shrinks it, or splits it in
+    two when the slot was in the middle.
+    """
     with SessionLock() as session:
         reservation = session.get(Reservation, reservation_id)
         if reservation is None:
@@ -617,25 +623,38 @@ def cancel_reservation(
                 status_code=400, detail="error.reservation.cant_cancel_started"
             )
 
-        session.add(
-            Notification.create(
-                reservation.user,
-                "notification.reservation_cancelled",
-                {
-                    "shop": reservation.shop.name,
-                    "datetime-start_time": reservation.start_time.strftime(
-                        "%Y-%m-%d %H:%M"
-                    ),
-                    "duration": int(
-                        (reservation.end_time - reservation.start_time).total_seconds()
-                        // 60
-                    ),
-                    "ics": reservation.ics_data(cancel=True),
-                },
-                route=f"/shops/{reservation.shop.id}/{monday_str(tz.utc_to_local(reservation.start_time))}",
+        start, end = reservation.start_time, reservation.end_time
+        slot = next((s for s in reservation.booked_slots if s.id == slot_id), None)
+        partial = slot is not None and len(reservation.booked_slots) > 1
+        if partial:
+            # Admins are told about the removed slot as a regular cancellation.
+            day = tz.utc_to_local(reservation.start_time).date()
+            start = tz.local_to_utc(datetime.datetime.combine(day, slot.start_time))
+            end = tz.local_to_utc(datetime.datetime.combine(day, slot.end_time))
+            _reschedule(
+                session,
+                reservation,
+                slot,
+                None,
                 mail=get("email_reservation_cancelled").asBool(),
             )
-        )
+
+        route = f"/shops/{reservation.shop.id}/{monday_str(tz.utc_to_local(start))}"
+        if not partial:
+            session.add(
+                Notification.create(
+                    reservation.user,
+                    "notification.reservation_cancelled",
+                    {
+                        "shop": reservation.shop.name,
+                        "datetime-start_time": start.strftime("%Y-%m-%d %H:%M"),
+                        "duration": int((end - start).total_seconds() // 60),
+                        "ics": reservation.ics_data(cancel=True),
+                    },
+                    route=route,
+                    mail=get("email_reservation_cancelled").asBool(),
+                )
+            )
 
         if get("notif_admin_reservation_cancelled").asBool() and (
             get("notify_for_admin_actions").asBool() or not user.admin
@@ -647,19 +666,15 @@ def cancel_reservation(
                     {
                         "user": reservation.user.full_name,
                         "shop": reservation.shop.name,
-                        "datetime-start_time": reservation.start_time.strftime(
-                            "%Y-%m-%d %H:%M"
-                        ),
-                        "duration": int(
-                            (reservation.end_time - reservation.start_time).total_seconds()
-                            // 60
-                        ),
+                        "datetime-start_time": start.strftime("%Y-%m-%d %H:%M"),
+                        "duration": int((end - start).total_seconds() // 60),
                     },
-                    route=f"/shops/{reservation.shop.id}/{monday_str(tz.utc_to_local(reservation.start_time))}",
+                    route=route,
                     mail=get("email_admin_reservation_cancelled").asBool(),
                 )
             )
-        session.delete(reservation)
+        if not partial:
+            session.delete(reservation)
         session.commit()
     return None
 

@@ -32,8 +32,8 @@ export default class ReservationApi {
         return result.data;
     }
 
-    async cancel(reservationId: number): Promise<void> {
-        await api.delete(`/res/${reservationId}/cancel`);
+    async cancel(reservationId: number, slotId?: number): Promise<void> {
+        await api.delete(`/res/${reservationId}/cancel`, { params: { slot_id: slotId } });
     }
 
     async validate(reservationId: number): Promise<void> {

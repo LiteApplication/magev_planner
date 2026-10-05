@@ -55,6 +55,7 @@ SUBJECTS = {
     "notification.reservation_created": "[MAGEV] Confirmation de votre réservation à notre opération paquets cadeaux",
     "notification.reminder": "[MAGEV] Rappel de réservation",
     "notification.reservation_modified": "[MAGEV] Modification de votre réservation",
+    "notification.reservation_split": "[MAGEV] Votre réservation a été scindée en deux",
     "notification.reservation_cancelled": "[MAGEV] Annulation de votre réservation",
     "notification.reservation_reassigned_old": "[MAGEV] Réservation supprimée",
     "notification.reservation_reassigned_new": "[MAGEV] Nouvelle réservation",
