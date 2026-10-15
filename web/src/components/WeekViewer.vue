@@ -119,7 +119,7 @@ const displayedTasks = computed<Task[][]>(() =>
             const bookedByOthers = ss.booked_count - (ss.booked_by_me ? 1 : 0);
             const remaining = ss.slot.max_volunteers - ss.booked_count;
             const past = !isAdmin.value && isPastSlot(ss.date, ss.slot.start_time);
-            const description = `${ss.slot.start_time.slice(0, 5)}–${ss.slot.end_time.slice(0, 5)} · ${t('message.reservation.spots_taken', { booked: ss.booked_count, max: ss.slot.max_volunteers })}`;
+            const description = `${ss.slot.start_time.slice(0, 5)}–${ss.slot.end_time.slice(0, 5)}`;
 
             const common = {
                 start_time: startMin,
